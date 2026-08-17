@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  PROVISIONAL — borrar este archivo entero (y su referencia android:networkSecurityConfig
+  en AndroidManifest.xml) el día que el servidor tenga TLS. No es configuración permanente:
+  existe solo porque hoy el backend de desarrollo responde en HTTP plano, y Android bloquea
+  tráfico en claro desde API 28 por defecto. El dominio de abajo está hardcodeado a propósito
+  (es la IP del servidor de dev); si esa IP cambia antes de migrar a HTTPS, actualízala aquí.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">86.48.23.21</domain>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">SOLTELEMATIC</string>
+
+    <string name="login_title">Iniciar sesión</string>
+    <string name="login_email_label">Correo</string>
+    <string name="login_password_label">Contraseña</string>
+    <string name="login_show_password">Mostrar</string>
+    <string name="login_hide_password">Ocultar</string>
+    <string name="login_submit">Entrar</string>
+    <string name="login_error_required_email">Ingresa tu correo</string>
+    <string name="login_error_required_password">Ingresa tu contraseña</string>
+    <string name="login_error_invalid_credentials">Correo o contraseña incorrectos</string>
+    <string name="login_error_no_connection">Sin conexión. Revisa tu internet e intenta de nuevo</string>
+    <string name="login_error_timeout">El servidor tardó demasiado en responder</string>
+    <string name="login_error_server">Ocurrió un error en el servidor. Intenta de nuevo</string>
+
+    <string name="map_placeholder_title">Mapa</string>
+</resources>
