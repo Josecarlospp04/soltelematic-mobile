@@ -25,4 +25,12 @@ interface AssetDao {
 
     @Query("SELECT * FROM assets WHERE id = :id")
     fun observeById(id: Int): Flow<AssetEntity?>
+
+    // Sin esto, una unidad retirada de la flota se queda en el mapa para siempre: el upsert
+    // solo agrega o actualiza, nunca elimina.
+    @Query("DELETE FROM assets WHERE id NOT IN (:ids)")
+    suspend fun deleteMissing(ids: List<Int>)
+
+    @Query("DELETE FROM assets")
+    suspend fun deleteAll()
 }

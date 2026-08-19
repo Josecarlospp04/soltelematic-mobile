@@ -11,6 +11,7 @@ import pe.soltelematic.mobile.BuildConfig
 import pe.soltelematic.mobile.core.network.ApiCallExecutor
 import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.core.network.AuthInterceptor
+import pe.soltelematic.mobile.core.network.IconUrlResolver
 import pe.soltelematic.mobile.core.network.TokenAuthenticator
 import pe.soltelematic.mobile.core.storage.SecureTokenStorage
 import pe.soltelematic.mobile.core.storage.TokenStorage
@@ -91,4 +92,6 @@ val networkModule = module {
     single { get<Retrofit>().create(AssetsApi::class.java) }
 
     single { ApiCallExecutor(get()) }
+
+    single { IconUrlResolver(BuildConfig.BASE_URL) }
 }

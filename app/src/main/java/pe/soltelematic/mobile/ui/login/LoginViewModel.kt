@@ -14,11 +14,13 @@ import kotlinx.coroutines.launch
 import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
+import pe.soltelematic.mobile.domain.repository.AssetRepository
 import pe.soltelematic.mobile.domain.repository.AuthRepository
 
 class LoginViewModel(
     private val authRepository: AuthRepository,
-    private val userPreferences: UserPreferencesDataStore
+    private val userPreferences: UserPreferencesDataStore,
+    private val assetRepository: AssetRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -96,6 +98,9 @@ class LoginViewModel(
                     // El login ya dejó tokens válidos guardados; si /user falla igual
                     // dejamos pasar a Mapa, no tiene sentido bloquear por una llamada secundaria.
                     authRepository.getCurrentUser()
+                    // Igual que getCurrentUser: si el refresh falla no bloqueamos la navegación.
+                    // El mapa se abre con lo que ya haya en Room (o vacío) y se refresca solo.
+                    assetRepository.refresh()
                     _uiState.update { it.copy(isLoading = false) }
                     _navigateToMap.emit(Unit)
                 }

@@ -5,5 +5,5 @@ import org.koin.dsl.module
 import pe.soltelematic.mobile.ui.login.LoginViewModel
 
 val viewModelModule = module {
-    viewModel { LoginViewModel(get(), get()) }
+    viewModel { LoginViewModel(get(), get(), get()) }
 }
