@@ -14,5 +14,27 @@
     <string name="login_error_timeout">El servidor tardó demasiado en responder</string>
     <string name="login_error_server">Ocurrió un error en el servidor. Intenta de nuevo</string>
 
-    <string name="map_placeholder_title">Mapa</string>
+    <string name="map_search_placeholder">Buscar unidad</string>
+    <string name="map_search_clear">Limpiar búsqueda</string>
+    <string name="map_open_account">Cuenta</string>
+    <string name="map_center_my_location">Centrar en mi ubicación</string>
+    <string name="map_fit_all">Ajustar zoom a todas</string>
+    <string name="map_filter_all">Todas</string>
+    <string name="map_filter_on_route">En ruta</string>
+    <string name="map_filter_stopped">Detenidas</string>
+    <string name="map_filter_blocked">Bloqueadas</string>
+    <string name="map_filter_offline">Sin reportar</string>
+
+    <string name="asset_unnamed">Unidad sin nombre</string>
+    <string name="asset_status_unknown">Estado desconocido</string>
+    <string name="asset_last_seen">Sin reportar %1$s</string>
+    <string name="asset_ignition_on">Motor encendido</string>
+    <string name="asset_ignition_off">Motor apagado</string>
+    <string name="asset_ignition_no_sensor">Sin sensor de ignición</string>
+
+    <string name="account_title">Cuenta</string>
+    <string name="account_back">Volver</string>
+    <string name="account_email_label">Correo</string>
+    <string name="account_server_label">Servidor</string>
+    <string name="account_logout">Cerrar sesión</string>
 </resources>

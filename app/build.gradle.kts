@@ -16,6 +16,7 @@ val localProperties = Properties().apply {
     }
 }
 val soltelematicBaseUrl: String = localProperties.getProperty("SOLTELEMATIC_BASE_URL", "")
+val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY", "")
 
 android {
     namespace = "pe.soltelematic.mobile"
@@ -34,6 +35,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BASE_URL", "\"$soltelematicBaseUrl\"")
+        // Leída aquí en vez de con buildConfigField porque el manifiesto la necesita como
+        // meta-data (com.google.android.geo.API_KEY), no como constante de Kotlin.
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
     buildTypes {
@@ -59,6 +63,9 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
+    // Íconos para las FABs del mapa (MyLocation, ZoomOutMap) y la cuenta (Logout): no están
+    // en el set base de material3, y version.ref lo resuelve el BOM de Compose.
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
@@ -86,6 +93,7 @@ dependencies {
     // Imágenes, mapas y tiempo real
     implementation(libs.coil.compose)
     implementation(libs.maps.compose)
+    implementation(libs.maps.compose.utils)
     implementation(libs.maps.utils)
     implementation(libs.socket.io.client)
     // Inyección de dependencias

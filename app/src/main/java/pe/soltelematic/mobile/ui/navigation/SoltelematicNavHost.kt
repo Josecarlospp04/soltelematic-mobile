@@ -9,8 +9,9 @@ import androidx.navigation.compose.rememberNavController
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.domain.repository.AuthRepository
+import pe.soltelematic.mobile.ui.account.AccountScreen
 import pe.soltelematic.mobile.ui.login.LoginScreen
-import pe.soltelematic.mobile.ui.map.MapPlaceholderScreen
+import pe.soltelematic.mobile.ui.map.MapScreen
 
 /**
  * Rutas como String simples: solo hay dos destinos sin parámetros. Si más adelante una
@@ -50,7 +51,19 @@ fun SoltelematicNavHost(
             )
         }
         composable(Destination.Map.route) {
-            MapPlaceholderScreen()
+            MapScreen(
+                onOpenAccount = { navController.navigate(Destination.Account.route) }
+            )
+        }
+        composable(Destination.Account.route) {
+            AccountScreen(
+                onBack = { navController.popBackStack() },
+                onLoggedOut = {
+                    navController.navigate(Destination.Login.route) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }
