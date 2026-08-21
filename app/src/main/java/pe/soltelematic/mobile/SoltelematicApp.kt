@@ -17,10 +17,10 @@ class SoltelematicApp : Application() {
         startKoin {
             if (BuildConfig.DEBUG) androidLogger()
             androidContext(this@SoltelematicApp)
-            modules(networkModule, databaseModule, mapModule, repositoryModule, viewModelModule)
-            // Aparte del resto: así en release ni se registra (ver debugModule), no solo se
-            // deja de usar.
-            if (BuildConfig.DEBUG) modules(debugModule)
+            // debugModule sin condicional a propósito: no es un módulo que se salte en release,
+            // es un módulo DISTINTO por variant (src/debug vs src/release, ver DebugModule.kt) --
+            // en release resuelve al módulo vacío, no hay nada que gatear en tiempo de ejecución.
+            modules(networkModule, databaseModule, mapModule, repositoryModule, viewModelModule, debugModule)
         }
     }
 }
