@@ -71,6 +71,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    // ProcessLifecycleOwner: pausar el polling de Bloque C cuando la app pasa a segundo plano.
+    implementation(libs.androidx.lifecycle.process)
     // Red
     implementation(libs.retrofit)
     implementation(libs.retrofit.serialization)

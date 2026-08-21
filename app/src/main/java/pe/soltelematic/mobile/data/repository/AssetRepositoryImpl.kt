@@ -48,5 +48,19 @@ class AssetRepositoryImpl(
         return ApiResult.Success(Unit)
     }
 
+    override suspend fun applyLatest(time: Long): ApiResult<Long> {
+        return when (val result = apiCallExecutor.execute { assetsApi.getLatest(time) }) {
+            is ApiResult.Success -> {
+                val entities = result.data.data.map { it.toEntity(iconUrlResolver) }
+                // Sin deleteMissing: esto es un delta (lo que cambió desde `time`), no un
+                // espejo completo -- borrar por ausencia acá borraría toda la flota que no se
+                // movió en este ciclo de polling.
+                assetDao.upsertAll(entities)
+                ApiResult.Success(result.data.time)
+            }
+            is ApiResult.Error -> result
+        }
+    }
+
     override suspend fun clear() = assetDao.deleteAll()
 }

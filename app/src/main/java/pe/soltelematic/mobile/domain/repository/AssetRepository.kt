@@ -12,6 +12,14 @@ interface AssetRepository {
     /** Pagina devices/map hasta agotar el cursor y deja Room como espejo exacto de la flota. */
     suspend fun refresh(): ApiResult<Unit>
 
+    /**
+     * Bloque C: pide devices/latest?time={time} (delta desde ese momento) y actualiza Room con
+     * upsert -- a diferencia de refresh(), NO borra lo que no viene en la respuesta: esto es un
+     * delta, no un espejo completo. Devuelve el "time" que trae la respuesta, para la siguiente
+     * llamada (lo mantiene quien llama, ver RealtimePoller).
+     */
+    suspend fun applyLatest(time: Long): ApiResult<Long>
+
     /** Se usa al cerrar sesión: sin esto, el siguiente usuario vería la flota del anterior. */
     suspend fun clear()
 }

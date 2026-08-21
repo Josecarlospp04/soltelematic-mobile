@@ -8,6 +8,6 @@ import pe.soltelematic.mobile.ui.map.MapViewModel
 
 val viewModelModule = module {
     viewModel { LoginViewModel(get(), get(), get()) }
-    viewModel { MapViewModel(get()) }
+    viewModel { MapViewModel(get(), get(), get()) }
     viewModel { AccountViewModel(get(), get(), get()) }
 }

@@ -80,3 +80,26 @@ data class AssetsPageDto(
     val data: List<AssetDto> = emptyList(),
     @SerialName("next_cursor") val nextCursor: String? = null
 )
+
+/**
+ * /devices/latest?time={ts}, forma verificada contra el servidor real (Bloque C, Paso 0) -- un
+ * envoltorio DISTINTO al de /devices/map, aunque cada AssetDto adentro es idéntico: acá viene
+ * "pagination" (no solo next_cursor suelto) y un "time" de nivel superior que hay que guardar
+ * para la siguiente llamada de polling. No se ha visto next_cursor no-nulo con la flota real, así
+ * que el repositorio no pagina -- si algún día aparece, tocaría paginar como en AssetsPageDto.
+ */
+@Serializable
+data class AssetsLatestDto(
+    val data: List<AssetDto> = emptyList(),
+    val pagination: AssetsLatestPaginationDto? = null,
+    val time: Long
+)
+
+@Serializable
+data class AssetsLatestPaginationDto(
+    @SerialName("per_page") val perPage: Int? = null,
+    @SerialName("next_cursor") val nextCursor: String? = null,
+    @SerialName("prev_cursor") val prevCursor: String? = null,
+    @SerialName("next_page_url") val nextPageUrl: String? = null,
+    @SerialName("prev_page_url") val prevPageUrl: String? = null
+)
