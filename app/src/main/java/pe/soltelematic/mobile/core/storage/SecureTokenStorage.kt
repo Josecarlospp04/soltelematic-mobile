@@ -8,6 +8,7 @@ import androidx.security.crypto.MasterKey
 private const val PREFS_FILE_NAME = "soltelematic_secure_prefs"
 private const val KEY_ACCESS_TOKEN = "access_token"
 private const val KEY_REFRESH_TOKEN = "refresh_token"
+private const val KEY_USER_ID = "user_id"
 
 /** access_token y refresh_token nunca en claro: EncryptedSharedPreferences con clave maestra AES256-GCM. */
 class SecureTokenStorage(context: Context) : TokenStorage {
@@ -40,4 +41,11 @@ class SecureTokenStorage(context: Context) : TokenStorage {
     }
 
     override fun hasTokens(): Boolean = getAccessToken() != null
+
+    override fun getUserId(): Int? =
+        if (prefs.contains(KEY_USER_ID)) prefs.getInt(KEY_USER_ID, 0) else null
+
+    override fun saveUserId(userId: Int) {
+        prefs.edit().putInt(KEY_USER_ID, userId).apply()
+    }
 }

@@ -34,8 +34,11 @@ private const val SOCKET_REALTIME_ENABLED = false
  * exactamente el mismo framing v3; el servidor ignora el parámetro EIO). No subir esa versión sin
  * volver a verificar el protocolo del servidor primero.
  *
- * La sala es md5("user_"+sub), donde sub sale del JWT del access_token -- GET /user no trae id
- * en ningún campo (verificado con la respuesta completa). El evento entrante todavía no se mapea
+ * La sala es md5("user_"+sub), donde sub sale del JWT del access_token -- así era necesario cuando
+ * se escribió esto porque GET /user no traía id en ningún campo. Ya lo trae (ver UserDto/User y
+ * TokenStorage.getUserId), pero este cliente no se tocó para no reabrir código apagado sin
+ * necesidad; si se reactiva, evaluar si conviene leer TokenStorage.getUserId() en vez de decodificar
+ * el JWT. El evento entrante todavía no se mapea
  * a AssetDto: nunca se observó un payload real porque el socket no está alimentado del lado
  * servidor, así que mapear su forma ahora sería inventarla. Cuando se active, lo primero es
  * volver a loguear crudo (como se hizo para verificar el resto de este cliente) antes de tocar

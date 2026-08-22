@@ -9,5 +9,8 @@ interface AuthRepository {
     suspend fun getCurrentUser(): ApiResult<User>
     suspend fun getServerConfig(): ApiResult<ServerConfig>
     fun hasStoredSession(): Boolean
+
+    /** Id persistido junto con la sesión (ver AuthRepositoryImpl.getCurrentUser); null si /user nunca respondió con éxito. */
+    fun getStoredUserId(): Int?
     fun logout()
 }

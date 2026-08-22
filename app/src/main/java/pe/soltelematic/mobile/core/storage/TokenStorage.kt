@@ -11,4 +11,8 @@ interface TokenStorage {
     fun saveTokens(accessToken: String, refreshToken: String)
     fun clearTokens()
     fun hasTokens(): Boolean
+
+    /** Id numérico del usuario (viene de /user), cacheado para no depender de esa llamada tras cada reconexión. */
+    fun getUserId(): Int?
+    fun saveUserId(userId: Int)
 }

@@ -26,7 +26,11 @@ class AuthRepositoryImpl(
 
     override suspend fun getCurrentUser(): ApiResult<User> =
         when (val result = apiCallExecutor.execute { authApi.getUser() }) {
-            is ApiResult.Success -> ApiResult.Success(result.data.toDomain())
+            is ApiResult.Success -> {
+                val user = result.data.toDomain()
+                user.id?.let { tokenStorage.saveUserId(it) }
+                ApiResult.Success(user)
+            }
             is ApiResult.Error -> result
         }
 
@@ -37,6 +41,8 @@ class AuthRepositoryImpl(
         }
 
     override fun hasStoredSession(): Boolean = tokenStorage.hasTokens()
+
+    override fun getStoredUserId(): Int? = tokenStorage.getUserId()
 
     override fun logout() = tokenStorage.clearTokens()
 }
