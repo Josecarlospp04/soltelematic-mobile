@@ -32,6 +32,39 @@
     <string name="asset_ignition_on">Motor encendido</string>
     <string name="asset_ignition_off">Motor apagado</string>
     <string name="asset_ignition_no_sensor">Sin sensor de ignición</string>
+    <string name="asset_open_detail">Ficha</string>
+    <string name="asset_open_history">Historial</string>
+
+    <string name="asset_detail_back">Volver</string>
+    <string name="asset_detail_retry">Reintentar</string>
+    <string name="asset_detail_error_no_connection">Sin conexión. Revisa tu internet e intenta de nuevo</string>
+    <string name="asset_detail_error_timeout">El servidor tardó demasiado en responder</string>
+    <string name="asset_detail_error_generic">No se pudo cargar la ficha de la unidad</string>
+    <string name="asset_detail_speed_label">Velocidad</string>
+    <string name="asset_detail_ignition_label">Ignición</string>
+    <string name="asset_detail_copy">Copiar</string>
+    <string name="asset_detail_copied">Copiado</string>
+    <string name="asset_detail_address_loading">Buscando dirección…</string>
+    <string name="asset_detail_address_unavailable">Dirección no disponible</string>
+    <string name="asset_detail_last_seen_label">Últimos datos recibidos</string>
+    <string name="asset_detail_no_location_title">Sin ubicación</string>
+    <string name="asset_detail_no_location_message">Esta unidad nunca reportó su posición</string>
+    <string name="asset_detail_today_title">Hoy</string>
+    <string name="asset_detail_today_empty">Sin datos de hoy todavía</string>
+    <string name="asset_detail_tab_summary">Resumen</string>
+    <string name="asset_detail_tab_sensors">Sensores</string>
+    <string name="asset_detail_tab_services">Servicios</string>
+    <string name="asset_detail_tab_driver">Conductor</string>
+
+    <plurals name="asset_detail_sensors_count">
+        <item quantity="one">%d sensor configurado</item>
+        <item quantity="other">%d sensores configurados</item>
+    </plurals>
+
+    <string name="asset_detail_action_history">Historial</string>
+    <string name="asset_detail_action_share">Compartir</string>
+    <string name="asset_detail_action_commands">Comandos</string>
+    <string name="asset_detail_action_commands_hint">Requiere confirmación biométrica</string>
 
     <string name="account_title">Cuenta</string>
     <string name="account_back">Volver</string>

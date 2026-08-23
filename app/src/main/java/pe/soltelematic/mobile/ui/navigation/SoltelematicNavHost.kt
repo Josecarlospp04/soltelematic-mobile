@@ -3,13 +3,16 @@ package pe.soltelematic.mobile.ui.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.domain.repository.AuthRepository
 import pe.soltelematic.mobile.ui.account.AccountScreen
+import pe.soltelematic.mobile.ui.assetdetail.AssetDetailScreen
 import pe.soltelematic.mobile.ui.login.LoginScreen
 import pe.soltelematic.mobile.ui.map.MapScreen
 
@@ -52,7 +55,10 @@ fun SoltelematicNavHost(
         }
         composable(Destination.Map.route) {
             MapScreen(
-                onOpenAccount = { navController.navigate(Destination.Account.route) }
+                onOpenAccount = { navController.navigate(Destination.Account.route) },
+                onOpenAssetDetail = { assetId ->
+                    navController.navigate(Destination.AssetDetail.createRoute(assetId))
+                }
             )
         }
         composable(Destination.Account.route) {
@@ -63,6 +69,16 @@ fun SoltelematicNavHost(
                         popUpTo(navController.graph.id) { inclusive = true }
                     }
                 }
+            )
+        }
+        composable(
+            route = Destination.AssetDetail.route,
+            arguments = listOf(navArgument(Destination.AssetDetail.ARG_ID) { type = NavType.IntType })
+        ) { backStackEntry ->
+            val assetId = backStackEntry.arguments?.getInt(Destination.AssetDetail.ARG_ID) ?: return@composable
+            AssetDetailScreen(
+                assetId = assetId,
+                onBack = { navController.popBackStack() }
             )
         }
     }

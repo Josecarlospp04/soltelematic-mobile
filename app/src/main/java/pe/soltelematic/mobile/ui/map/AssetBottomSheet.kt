@@ -15,6 +15,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +36,7 @@ import pe.soltelematic.mobile.domain.model.Ignition
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AssetBottomSheet(asset: Asset, onDismiss: () -> Unit) {
+fun AssetBottomSheet(asset: Asset, onDismiss: () -> Unit, onOpenDetail: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -51,6 +52,23 @@ fun AssetBottomSheet(asset: Asset, onDismiss: () -> Unit) {
             StatusChip(asset)
             SpeedOrLastSeen(asset)
             IgnitionRow(asset.ignition)
+            BottomSheetActions(onOpenDetail = onOpenDetail)
+        }
+    }
+}
+
+@Composable
+private fun BottomSheetActions(onOpenDetail: () -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedButton(onClick = onOpenDetail, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.asset_open_detail))
+        }
+        // Sprint 2B: sin destino todavía.
+        OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.asset_open_history))
         }
     }
 }

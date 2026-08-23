@@ -62,6 +62,7 @@ import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
 @Composable
 fun MapScreen(
     onOpenAccount: () -> Unit,
+    onOpenAssetDetail: (Int) -> Unit,
     viewModel: MapViewModel = koinViewModel(),
     mapEngine: MapEngine = koinInject()
 ) {
@@ -157,7 +158,11 @@ fun MapScreen(
     }
 
     uiState.selectedAsset?.let { asset ->
-        AssetBottomSheet(asset = asset, onDismiss = viewModel::onBottomSheetDismissed)
+        AssetBottomSheet(
+            asset = asset,
+            onDismiss = viewModel::onBottomSheetDismissed,
+            onOpenDetail = { onOpenAssetDetail(asset.id) }
+        )
     }
 }
 

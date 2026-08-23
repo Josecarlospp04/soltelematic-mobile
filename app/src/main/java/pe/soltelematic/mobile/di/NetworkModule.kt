@@ -16,6 +16,7 @@ import pe.soltelematic.mobile.core.network.TokenAuthenticator
 import pe.soltelematic.mobile.core.storage.SecureTokenStorage
 import pe.soltelematic.mobile.core.storage.TokenStorage
 import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
+import pe.soltelematic.mobile.data.remote.api.AssetDetailApi
 import pe.soltelematic.mobile.data.remote.api.AssetsApi
 import pe.soltelematic.mobile.data.remote.api.AuthApi
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -90,6 +91,7 @@ val networkModule = module {
 
     single { get<Retrofit>().create(AuthApi::class.java) }
     single { get<Retrofit>().create(AssetsApi::class.java) }
+    single { get<Retrofit>().create(AssetDetailApi::class.java) }
 
     single { ApiCallExecutor(get()) }
 
