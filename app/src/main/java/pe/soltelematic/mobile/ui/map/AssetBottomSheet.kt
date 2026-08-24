@@ -36,7 +36,7 @@ import pe.soltelematic.mobile.domain.model.Ignition
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AssetBottomSheet(asset: Asset, onDismiss: () -> Unit, onOpenDetail: () -> Unit) {
+fun AssetBottomSheet(asset: Asset, onDismiss: () -> Unit, onOpenDetail: () -> Unit, onOpenHistory: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -52,13 +52,13 @@ fun AssetBottomSheet(asset: Asset, onDismiss: () -> Unit, onOpenDetail: () -> Un
             StatusChip(asset)
             SpeedOrLastSeen(asset)
             IgnitionRow(asset.ignition)
-            BottomSheetActions(onOpenDetail = onOpenDetail)
+            BottomSheetActions(onOpenDetail = onOpenDetail, onOpenHistory = onOpenHistory)
         }
     }
 }
 
 @Composable
-private fun BottomSheetActions(onOpenDetail: () -> Unit) {
+private fun BottomSheetActions(onOpenDetail: () -> Unit, onOpenHistory: () -> Unit) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth()
@@ -66,8 +66,7 @@ private fun BottomSheetActions(onOpenDetail: () -> Unit) {
         OutlinedButton(onClick = onOpenDetail, modifier = Modifier.weight(1f)) {
             Text(stringResource(R.string.asset_open_detail))
         }
-        // Sprint 2B: sin destino todavía.
-        OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) {
+        OutlinedButton(onClick = onOpenHistory, modifier = Modifier.weight(1f)) {
             Text(stringResource(R.string.asset_open_history))
         }
     }

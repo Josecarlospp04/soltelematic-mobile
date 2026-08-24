@@ -8,15 +8,17 @@ El backend es **GPSWOX** (Laravel 9 + Passport OAuth2), consumido a través de `
 
 ## Estado actual
 
-En desarrollo activo. **Sprint 0 y Sprint 1 completos:**
+En desarrollo activo. **Sprint 0, Sprint 1, Sprint 2A y Sprint 2B completos:**
 
 - Login funcional contra el servidor real, con sesión persistida
 - Mapa en vivo con clustering de unidades
 - Filtros por estado (en línea, detenida, sin señal, etc.)
-- Ficha resumida al tocar una unidad
+- Ficha resumida al tocar una unidad (bottom sheet del mapa)
 - Actualización incremental de posiciones (sin recargar el mapa completo)
+- Ficha de unidad completa (pantalla `AssetDetail`, navegable desde "Ficha" del bottom sheet): cabecera con chip de estado, pestañas condicionales (Resumen siempre; Sensores/Servicios/Conductor solo si hay contenido), ubicación con dirección geocodificada y coordenadas copiables, métricas "HOY"
+- Historial de recorridos (pantalla `HistoryScreen`, navegable desde "Historial" en el bottom sheet y en la ficha): mapa con polyline por viaje y marcadores de parada/inicio/fin, línea de tiempo con vínculo bidireccional al mapa, resumen del periodo colapsable, selector de fechas (Hoy/Ayer/7 días/rango elegido con tope de 31 días), geocodificación perezosa y cacheada por parada, carga cancelable
 
-**Fuera de alcance por ahora:** comandos a las unidades, historial de recorridos, alertas.
+**Fuera de alcance por ahora:** comandos a las unidades (fila visible mas deshabilitada en la ficha, puerta hacia Sprint 4), alertas.
 
 ## Stack técnico
 
@@ -76,6 +78,12 @@ El mapa vive detrás de una abstracción **`MapEngine`**: la pantalla y el ViewM
 - **Koin, no Hilt.** AGP 9.2.1 es incompatible con Hilt ([google/dagger#4944](https://github.com/google/dagger/issues/4944), `Android BaseExtension not found`). No agregar `@HiltAndroidApp`, `@AndroidEntryPoint` ni `@Inject` en este proyecto.
 - **`android.disallowKotlinSourceSets=false`** debe estar en `gradle.properties` — sin esto, Gradle no reconoce los source sets de variant (`src/debug`, `src/release`) usados para excluir código de depuración (como el seeder de datos sintéticos) del build de producción.
 
+## Deuda técnica conocida
+
+- **Jank en el mapa de Historial al hacer scroll de la línea de tiempo.** Medido con `dumpsys gfxinfo` (dispositivo real, unidad "prueba EUI-281", rango de 7 días, ~31k posiciones GPS antes de simplificar): percentil 90 de 900ms sobre una muestra de 13 frames. Hipótesis sin confirmar: los `LaunchedEffect` de geocodificación perezosa (`HistoryTimeline.kt`) disparándose en bloque cuando varias filas de parada entran en pantalla a la vez durante un scroll rápido, no el dibujo del polyline en sí (ese ya se resolvió, ver `GoogleRouteMapEngine.kt`). Sin investigar todavía — 13 frames es muestra insuficiente para confirmar la causa. Revisar en el pulido: repetir la medición con una muestra más grande y, si la hipótesis se confirma, evaluar debounce o límite de concurrencia en `onStopRowVisible`.
+
 ## Contrato de API
 
-El backend expone `clientlite` bajo el prefijo `/api/app/clientlite/`. Endpoints integrados: `token`, `refresh`, `server_config`, `user`, `devices/map` y `devices/latest`.
+El backend expone `clientlite` bajo el prefijo `/api/app/clientlite/`. Endpoints integrados: `token`, `refresh`, `server_config`, `user`, `devices/map`, `devices/latest`, `device/{id}`, `history` y `address`.
+
+> **Nota sobre `device/{id}`:** el campo `time.timestamp` viene desfasado (~5h en producción, igual al offset UTC-5 de Perú); usar `time.formatted` en su lugar, que sí es correcto. De ahí depende el color de "hace X" y el atenuado de las métricas de "HOY". `AssetMapper.kt` (el de `devices/map`, usado por el mapa) no tiene este problema.

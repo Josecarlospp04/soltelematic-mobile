@@ -13,6 +13,7 @@ import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.domain.repository.AuthRepository
 import pe.soltelematic.mobile.ui.account.AccountScreen
 import pe.soltelematic.mobile.ui.assetdetail.AssetDetailScreen
+import pe.soltelematic.mobile.ui.history.HistoryScreen
 import pe.soltelematic.mobile.ui.login.LoginScreen
 import pe.soltelematic.mobile.ui.map.MapScreen
 
@@ -58,6 +59,9 @@ fun SoltelematicNavHost(
                 onOpenAccount = { navController.navigate(Destination.Account.route) },
                 onOpenAssetDetail = { assetId ->
                     navController.navigate(Destination.AssetDetail.createRoute(assetId))
+                },
+                onOpenHistory = { assetId ->
+                    navController.navigate(Destination.History.createRoute(assetId))
                 }
             )
         }
@@ -77,6 +81,17 @@ fun SoltelematicNavHost(
         ) { backStackEntry ->
             val assetId = backStackEntry.arguments?.getInt(Destination.AssetDetail.ARG_ID) ?: return@composable
             AssetDetailScreen(
+                assetId = assetId,
+                onBack = { navController.popBackStack() },
+                onOpenHistory = { navController.navigate(Destination.History.createRoute(assetId)) }
+            )
+        }
+        composable(
+            route = Destination.History.route,
+            arguments = listOf(navArgument(Destination.History.ARG_ID) { type = NavType.IntType })
+        ) { backStackEntry ->
+            val assetId = backStackEntry.arguments?.getInt(Destination.History.ARG_ID) ?: return@composable
+            HistoryScreen(
                 assetId = assetId,
                 onBack = { navController.popBackStack() }
             )

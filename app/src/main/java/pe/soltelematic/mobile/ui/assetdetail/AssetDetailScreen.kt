@@ -49,6 +49,7 @@ import pe.soltelematic.mobile.domain.model.AssetDetail
 fun AssetDetailScreen(
     assetId: Int,
     onBack: () -> Unit,
+    onOpenHistory: () -> Unit,
     viewModel: AssetDetailViewModel = koinViewModel(parameters = { parametersOf(assetId) })
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -68,7 +69,7 @@ fun AssetDetailScreen(
             )
         },
         bottomBar = {
-            if (uiState.detail != null) DetailActionsFooter()
+            if (uiState.detail != null) DetailActionsFooter(onOpenHistory = onOpenHistory)
         }
     ) { innerPadding ->
         Box(

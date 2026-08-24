@@ -63,6 +63,7 @@ import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
 fun MapScreen(
     onOpenAccount: () -> Unit,
     onOpenAssetDetail: (Int) -> Unit,
+    onOpenHistory: (Int) -> Unit,
     viewModel: MapViewModel = koinViewModel(),
     mapEngine: MapEngine = koinInject()
 ) {
@@ -161,7 +162,8 @@ fun MapScreen(
         AssetBottomSheet(
             asset = asset,
             onDismiss = viewModel::onBottomSheetDismissed,
-            onOpenDetail = { onOpenAssetDetail(asset.id) }
+            onOpenDetail = { onOpenAssetDetail(asset.id) },
+            onOpenHistory = { onOpenHistory(asset.id) }
         )
     }
 }

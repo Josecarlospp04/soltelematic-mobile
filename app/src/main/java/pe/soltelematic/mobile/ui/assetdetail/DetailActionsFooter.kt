@@ -21,16 +21,17 @@ import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
 
 /**
- * Historial/Compartir: deshabilitados, sin destino todavía (Sprint 2B y un sprint futuro). No
- * son parte de ninguna pestaña -- viven en el bottomBar del Scaffold para quedar visibles sin
- * importar cuál esté seleccionada (ver AssetDetailScreen).
+ * Compartir: deshabilitado, sin destino todavía (sprint futuro). Historial ya navega a
+ * ui/history/HistoryScreen (Sprint 2B). Ninguno de los dos es parte de una pestaña -- viven en
+ * el bottomBar del Scaffold para quedar visibles sin importar cuál esté seleccionada (ver
+ * AssetDetailScreen).
  *
  * Comandos NO es un tercer botón deshabilitado: es una puerta hacia un flujo que todavía no
  * existe (Sprint 4, confirmación biométrica), así que se muestra aislado, en rojo, y sin
  * clickable -- no es "tócalo y no pasa nada", es "esto existe pero va a exigir biometría".
  */
 @Composable
-fun DetailActionsFooter(modifier: Modifier = Modifier) {
+fun DetailActionsFooter(onOpenHistory: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -38,7 +39,7 @@ fun DetailActionsFooter(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = onOpenHistory, modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.asset_detail_action_history))
             }
             OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) {

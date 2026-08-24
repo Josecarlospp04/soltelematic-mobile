@@ -4,6 +4,7 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import pe.soltelematic.mobile.ui.account.AccountViewModel
 import pe.soltelematic.mobile.ui.assetdetail.AssetDetailViewModel
+import pe.soltelematic.mobile.ui.history.HistoryViewModel
 import pe.soltelematic.mobile.ui.login.LoginViewModel
 import pe.soltelematic.mobile.ui.map.MapViewModel
 
@@ -14,4 +15,5 @@ val viewModelModule = module {
     // assetId llega por parametersOf desde koinViewModel (ver AssetDetailScreen), no por get():
     // es un argumento de navegación, no una dependencia inyectable.
     viewModel { (assetId: Int) -> AssetDetailViewModel(assetId, get()) }
+    viewModel { (assetId: Int) -> HistoryViewModel(assetId, get()) }
 }

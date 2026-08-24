@@ -6,6 +6,7 @@ import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.data.mapper.toDomain
 import pe.soltelematic.mobile.data.remote.api.AssetDetailApi
 import pe.soltelematic.mobile.domain.model.AssetDetail
+import pe.soltelematic.mobile.domain.model.HistoryRoute
 import pe.soltelematic.mobile.domain.model.UnitStat
 import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
 import java.time.LocalDate
@@ -42,6 +43,20 @@ class AssetDetailRepositoryImpl(
             is ApiResult.Error -> result
         }
     }
+
+    override suspend fun getRoute(id: Int, from: LocalDateTime, to: LocalDateTime): ApiResult<HistoryRoute> =
+        when (
+            val result = apiCallExecutor.execute {
+                api.getHistory(
+                    deviceId = id,
+                    from = from.format(HISTORY_DATE_FORMAT),
+                    to = to.format(HISTORY_DATE_FORMAT)
+                )
+            }
+        ) {
+            is ApiResult.Success -> ApiResult.Success(result.data.data.toDomain())
+            is ApiResult.Error -> result
+        }
 
     override suspend fun getAddress(lat: Double, lng: Double): ApiResult<String?> =
         when (val result = apiCallExecutor.execute { api.getAddress(lat, lng) }) {

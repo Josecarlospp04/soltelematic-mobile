@@ -66,6 +66,19 @@
     <string name="asset_detail_action_commands">Comandos</string>
     <string name="asset_detail_action_commands_hint">Requiere confirmación biométrica</string>
 
+    <string name="history_title">Historial</string>
+    <string name="history_cancel">Cancelar</string>
+    <string name="history_empty">Sin actividad este día</string>
+    <string name="history_leg_stop_fallback_title">Parada</string>
+    <string name="history_leg_drive_fallback_title">Viaje</string>
+    <string name="history_date_today">Hoy</string>
+    <string name="history_date_yesterday">Ayer</string>
+    <string name="history_date_last_7_days">7 días</string>
+    <string name="history_date_custom">Elegir</string>
+    <string name="history_date_range_confirm">Aceptar</string>
+    <string name="history_summary_title">Resumen</string>
+    <string name="history_summary_empty">Sin datos para este periodo</string>
+
     <string name="account_title">Cuenta</string>
     <string name="account_back">Volver</string>
     <string name="account_email_label">Correo</string>
