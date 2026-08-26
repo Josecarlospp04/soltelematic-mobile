@@ -14,11 +14,13 @@ import pe.soltelematic.mobile.core.network.AuthInterceptor
 import pe.soltelematic.mobile.core.network.IconUrlResolver
 import pe.soltelematic.mobile.core.network.TokenAuthenticator
 import pe.soltelematic.mobile.core.storage.SecureTokenStorage
+import pe.soltelematic.mobile.core.storage.SeenEventsStore
 import pe.soltelematic.mobile.core.storage.TokenStorage
 import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
 import pe.soltelematic.mobile.data.remote.api.AssetDetailApi
 import pe.soltelematic.mobile.data.remote.api.AssetsApi
 import pe.soltelematic.mobile.data.remote.api.AuthApi
+import pe.soltelematic.mobile.data.remote.api.EventsApi
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
@@ -43,6 +45,7 @@ val networkModule = module {
     // quien primero los consume es el interceptor y el authenticator de abajo.
     single<TokenStorage> { SecureTokenStorage(androidContext()) }
     single { UserPreferencesDataStore(androidContext()) }
+    single { SeenEventsStore(androidContext()) }
 
     // --- Cliente/Retrofit/API "pelados": sin AuthInterceptor ni TokenAuthenticator.
     // Rompen el ciclo: el cliente principal necesita un TokenAuthenticator, que necesita
@@ -92,6 +95,7 @@ val networkModule = module {
     single { get<Retrofit>().create(AuthApi::class.java) }
     single { get<Retrofit>().create(AssetsApi::class.java) }
     single { get<Retrofit>().create(AssetDetailApi::class.java) }
+    single { get<Retrofit>().create(EventsApi::class.java) }
 
     single { ApiCallExecutor(get()) }
 

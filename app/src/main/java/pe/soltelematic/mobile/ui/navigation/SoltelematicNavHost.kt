@@ -13,6 +13,7 @@ import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.domain.repository.AuthRepository
 import pe.soltelematic.mobile.ui.account.AccountScreen
 import pe.soltelematic.mobile.ui.assetdetail.AssetDetailScreen
+import pe.soltelematic.mobile.ui.events.EventsScreen
 import pe.soltelematic.mobile.ui.history.HistoryScreen
 import pe.soltelematic.mobile.ui.login.LoginScreen
 import pe.soltelematic.mobile.ui.map.MapScreen
@@ -62,6 +63,15 @@ fun SoltelematicNavHost(
                 },
                 onOpenHistory = { assetId ->
                     navController.navigate(Destination.History.createRoute(assetId))
+                },
+                onOpenEvents = { navController.navigate(Destination.Events.route) }
+            )
+        }
+        composable(Destination.Events.route) {
+            EventsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenAssetDetail = { assetId ->
+                    navController.navigate(Destination.AssetDetail.createRoute(assetId))
                 }
             )
         }

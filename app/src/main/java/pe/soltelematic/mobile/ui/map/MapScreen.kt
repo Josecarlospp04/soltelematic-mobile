@@ -28,8 +28,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ZoomOutMap
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -64,6 +67,7 @@ fun MapScreen(
     onOpenAccount: () -> Unit,
     onOpenAssetDetail: (Int) -> Unit,
     onOpenHistory: (Int) -> Unit,
+    onOpenEvents: () -> Unit,
     viewModel: MapViewModel = koinViewModel(),
     mapEngine: MapEngine = koinInject()
 ) {
@@ -122,7 +126,9 @@ fun MapScreen(
             MapSearchBar(
                 query = uiState.searchQuery,
                 onQueryChange = viewModel::onSearchQueryChange,
-                onOpenAccount = onOpenAccount
+                onOpenAccount = onOpenAccount,
+                onOpenEvents = onOpenEvents,
+                unseenEventsCount = uiState.unseenEventsCount
             )
             Spacer(modifier = Modifier.height(8.dp))
             FilterChipsRow(
@@ -172,7 +178,9 @@ fun MapScreen(
 private fun MapSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onOpenAccount: () -> Unit
+    onOpenAccount: () -> Unit,
+    onOpenEvents: () -> Unit,
+    unseenEventsCount: Int
 ) {
     Surface(
         shape = RoundedCornerShape(28.dp),
@@ -196,6 +204,22 @@ private fun MapSearchBar(
                 },
                 modifier = Modifier.weight(1f)
             )
+            // Campana de la bandeja de alertas (Sprint 3A), entre el buscador y la cuenta: no hay
+            // TopAppBar en esta pantalla (ver MapScreen.kt), este Surface ES la barra superior.
+            IconButton(onClick = onOpenEvents) {
+                BadgedBox(
+                    badge = {
+                        if (unseenEventsCount > 0) {
+                            Badge { Text(if (unseenEventsCount > 9) "9+" else unseenEventsCount.toString()) }
+                        }
+                    }
+                ) {
+                    Icon(
+                        Icons.Filled.Notifications,
+                        contentDescription = stringResource(R.string.events_bell_content_description)
+                    )
+                }
+            }
             // Icono de perfil al final del buscador (patrón Google Maps): no compite con el
             // buscador por espacio en la barra superior y abre la ficha de cuenta.
             IconButton(onClick = onOpenAccount) {

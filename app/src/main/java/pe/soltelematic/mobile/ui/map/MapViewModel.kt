@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pe.soltelematic.mobile.core.network.RealtimePoller
 import pe.soltelematic.mobile.core.network.SocketRealtimeClient
+import pe.soltelematic.mobile.core.network.UnseenEventsPoller
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.repository.AssetRepository
@@ -16,7 +17,8 @@ import pe.soltelematic.mobile.domain.repository.AssetRepository
 class MapViewModel(
     private val assetRepository: AssetRepository,
     private val realtimePoller: RealtimePoller,
-    private val socketRealtimeClient: SocketRealtimeClient
+    private val socketRealtimeClient: SocketRealtimeClient,
+    private val unseenEventsPoller: UnseenEventsPoller
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MapUiState())
@@ -33,12 +35,18 @@ class MapViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            unseenEventsPoller.unseenCount.collect { count ->
+                _uiState.update { it.copy(unseenEventsCount = count) }
+            }
+        }
         refresh()
         // Bloque C: devices/map (arriba) para la carga inicial, polling para lo que sigue. El
         // socket queda registrado pero SOCKET_REALTIME_ENABLED lo apaga -- start() no hace nada
         // hasta que se active esa bandera.
         realtimePoller.start(viewModelScope)
         socketRealtimeClient.start(viewModelScope)
+        unseenEventsPoller.start(viewModelScope)
     }
 
     override fun onCleared() {

@@ -9,7 +9,8 @@ data class MapUiState(
     val activeFilter: AssetFilter = AssetFilter.ALL,
     val hasBlockedAssets: Boolean = false,
     val selectedAssetId: Int? = null,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val unseenEventsCount: Int = 0
 ) {
     val visibleAssets: List<Asset>
         get() = assets

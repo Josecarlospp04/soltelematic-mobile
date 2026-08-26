@@ -11,12 +11,17 @@ val databaseModule = module {
 
     single {
         Room.databaseBuilder(androidContext(), SoltelematicDb::class.java, DB_NAME)
-            // "assets" es caché de red pura; ante un cambio de esquema es mejor vaciarla y
-            // que el próximo refresh la rellene, que escribir una migración para datos derivados.
+            // "assets" y "events" son caché de red pura; ante un cambio de esquema es mejor
+            // vaciarlas y que el próximo refresh las rellene, que escribir una migración para
+            // datos derivados. OJO: dropAllTables=true borra TODAS las tablas en cualquier salto
+            // de versión, no solo la que cambió -- el salto a version=3 (Sprint 3A) también vació
+            // "assets" aunque su forma no cambió, así que el primer arranque sin red tras
+            // actualizar mostró el mapa vacío. Aceptable mientras la app no tiene usuarios
+            // reales; antes de eso hay que escribir una migración real en vez de esto.
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 
     single { get<SoltelematicDb>().assetDao() }
-    single { get<SoltelematicDb>().alertDao() }
+    single { get<SoltelematicDb>().eventDao() }
 }

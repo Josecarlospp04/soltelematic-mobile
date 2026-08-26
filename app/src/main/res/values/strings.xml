@@ -79,6 +79,16 @@
     <string name="history_summary_title">Resumen</string>
     <string name="history_summary_empty">Sin datos para este periodo</string>
 
+    <string name="events_title">Alertas</string>
+    <string name="events_search_placeholder">Buscar por unidad o mensaje</string>
+    <string name="events_empty_title">No hay alertas registradas</string>
+    <string name="events_empty_search">Sin resultados para esta búsqueda</string>
+    <string name="events_unnamed_event">Evento sin nombre</string>
+    <string name="events_speed_vs_limit">%1$s — límite %2$s</string>
+    <string name="events_offline_banner">Sin conexión. Mostrando lo último guardado</string>
+    <string name="events_load_more_error">No se pudieron cargar más alertas</string>
+    <string name="events_bell_content_description">Alertas</string>
+
     <string name="account_title">Cuenta</string>
     <string name="account_back">Volver</string>
     <string name="account_email_label">Correo</string>
