@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.LayersClear
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
@@ -109,6 +111,7 @@ fun MapScreen(
             markers = markers,
             selectedMarkerId = uiState.selectedAssetId,
             myLocationEnabled = hasLocationPermission,
+            geofences = uiState.visibleGeofences,
             onMarkerClick = viewModel::onAssetSelected,
             onMapClick = viewModel::onBottomSheetDismissed
         )
@@ -158,6 +161,13 @@ fun MapScreen(
                 }
             ) {
                 Icon(Icons.Filled.MyLocation, contentDescription = stringResource(R.string.map_center_my_location))
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            FloatingActionButton(onClick = viewModel::onToggleGeofencesVisibility) {
+                Icon(
+                    if (uiState.showGeofences) Icons.Filled.Layers else Icons.Filled.LayersClear,
+                    contentDescription = stringResource(R.string.map_toggle_geofences)
+                )
             }
 
             DebugSeedFab()

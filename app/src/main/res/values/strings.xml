@@ -29,6 +29,7 @@
     <string name="map_open_account">Cuenta</string>
     <string name="map_center_my_location">Centrar en mi ubicación</string>
     <string name="map_fit_all">Ajustar zoom a todas</string>
+    <string name="map_toggle_geofences">Mostrar u ocultar geocercas</string>
     <string name="map_debug_seed_load">Generar 200+ unidades sintéticas (solo debug)</string>
     <string name="map_filter_all">Todas</string>
     <string name="map_filter_on_route">En ruta</string>

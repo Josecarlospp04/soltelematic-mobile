@@ -21,6 +21,7 @@ import pe.soltelematic.mobile.data.remote.api.AssetDetailApi
 import pe.soltelematic.mobile.data.remote.api.AssetsApi
 import pe.soltelematic.mobile.data.remote.api.AuthApi
 import pe.soltelematic.mobile.data.remote.api.EventsApi
+import pe.soltelematic.mobile.data.remote.api.GeofencesApi
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.Retrofit
 import java.util.concurrent.TimeUnit
@@ -98,6 +99,7 @@ val networkModule = module {
     single { get<Retrofit>().create(AssetsApi::class.java) }
     single { get<Retrofit>().create(AssetDetailApi::class.java) }
     single { get<Retrofit>().create(EventsApi::class.java) }
+    single { get<Retrofit>().create(GeofencesApi::class.java) }
 
     single { ApiCallExecutor(get()) }
 

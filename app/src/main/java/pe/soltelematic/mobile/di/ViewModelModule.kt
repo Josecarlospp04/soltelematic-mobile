@@ -13,7 +13,7 @@ import pe.soltelematic.mobile.ui.map.MapViewModel
 val viewModelModule = module {
     viewModel { LoginViewModel(get(), get(), get()) }
     viewModel { ForgotPasswordViewModel(get()) }
-    viewModel { MapViewModel(get(), get(), get(), get()) }
+    viewModel { MapViewModel(get(), get(), get(), get(), get(), get()) }
     viewModel { AccountViewModel(get(), get(), get()) }
     // assetId llega por parametersOf desde koinViewModel (ver AssetDetailScreen), no por get():
     // es un argumento de navegación, no una dependencia inyectable.

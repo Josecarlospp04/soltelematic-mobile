@@ -2,6 +2,7 @@ package pe.soltelematic.mobile.ui.map.engine
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import pe.soltelematic.mobile.domain.model.Geofence
 import pe.soltelematic.mobile.domain.model.GeoPoint
 
 /**
@@ -53,6 +54,12 @@ interface MapEngine {
         // Contrato: solo pasar true cuando ACCESS_FINE_LOCATION ya está concedido. El motor no
         // pide el permiso, confía en que quien llama (MapScreen) ya lo hizo.
         myLocationEnabled: Boolean,
+        // Se reutiliza el modelo de dominio tal cual (como GeoPoint): ya es agnóstico de
+        // proveedor de mapas y trae exactamente lo necesario para dibujar, sin recortar campos
+        // como sí hace MapMarkerData respecto de Asset. Lista ya vacía si el interruptor de la
+        // pantalla está apagado -- el motor no conoce esa preferencia, solo dibuja lo que recibe.
+        // Nunca clicables (ver GoogleMapEngine): competirían con el toque para seleccionar unidades.
+        geofences: List<Geofence>,
         onMarkerClick: (Int) -> Unit,
         onMapClick: () -> Unit
     )
