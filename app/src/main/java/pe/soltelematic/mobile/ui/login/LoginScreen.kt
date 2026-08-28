@@ -33,6 +33,7 @@ import pe.soltelematic.mobile.R
 @Composable
 fun LoginScreen(
     onNavigateToMap: () -> Unit,
+    onNavigateToForgotPassword: () -> Unit,
     viewModel: LoginViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -46,7 +47,8 @@ fun LoginScreen(
         onEmailChange = viewModel::onEmailChange,
         onPasswordChange = viewModel::onPasswordChange,
         onTogglePasswordVisibility = viewModel::onTogglePasswordVisibility,
-        onSubmit = viewModel::onSubmit
+        onSubmit = viewModel::onSubmit,
+        onNavigateToForgotPassword = onNavigateToForgotPassword
     )
 }
 
@@ -56,7 +58,8 @@ private fun LoginContent(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onTogglePasswordVisibility: () -> Unit,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onNavigateToForgotPassword: () -> Unit
 ) {
     Scaffold { innerPadding ->
         Column(
@@ -142,7 +145,13 @@ private fun LoginContent(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TextButton(onClick = onNavigateToForgotPassword) {
+                Text(stringResource(R.string.login_forgot_password))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = onSubmit,

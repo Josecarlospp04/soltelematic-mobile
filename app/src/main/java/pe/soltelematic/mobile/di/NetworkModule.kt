@@ -28,8 +28,10 @@ import java.util.concurrent.TimeUnit
 private const val CONNECT_TIMEOUT_SECONDS = 15L
 private const val READ_TIMEOUT_SECONDS = 30L
 
-// Qualifier para el cliente/Retrofit/API "pelados" que solo existen para pedir el refresh.
-private val REFRESH = named("refresh")
+// Qualifier para el cliente/Retrofit/API "pelados": sin AuthInterceptor ni TokenAuthenticator.
+// No es private porque RepositoryModule también lo usa (forgotPassword necesita el AuthApi
+// pelado, igual que TokenAuthenticator usa el mismo para /refresh).
+val REFRESH = named("refresh")
 
 private fun debugLoggingInterceptor() = HttpLoggingInterceptor().apply {
     level = HttpLoggingInterceptor.Level.BODY

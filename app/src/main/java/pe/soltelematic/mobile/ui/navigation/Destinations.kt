@@ -9,6 +9,7 @@ private const val ASSET_ID_ARG = "assetId"
  */
 sealed class Destination(val route: String) {
     data object Login : Destination("login")
+    data object ForgotPassword : Destination("forgot_password")
     data object Map : Destination("map")
     data object Account : Destination("account")
     data object Events : Destination("events")

@@ -11,3 +11,14 @@ data class TokenResponseDto(
     @SerialName("access_token") val accessToken: String,
     @SerialName("refresh_token") val refreshToken: String
 )
+
+/**
+ * status=1 éxito, status=0 correo no encontrado -- la UI trata ambos igual (ver
+ * AuthRepositoryImpl.forgotPassword) para no revelar si un correo está registrado. message solo
+ * se usa para el log de debug.
+ */
+@Serializable
+data class ForgotPasswordResponseDto(
+    val status: Int,
+    val message: String? = null
+)

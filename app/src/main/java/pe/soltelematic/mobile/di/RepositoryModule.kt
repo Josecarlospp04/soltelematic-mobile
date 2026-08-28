@@ -11,7 +11,8 @@ import pe.soltelematic.mobile.domain.repository.AuthRepository
 import pe.soltelematic.mobile.domain.repository.EventsRepository
 
 val repositoryModule = module {
-    single<AuthRepository> { AuthRepositoryImpl(get(), get(), get()) }
+    // REFRESH: mismo qualifier del AuthApi "pelado" declarado en NetworkModule.kt.
+    single<AuthRepository> { AuthRepositoryImpl(get(), get(REFRESH), get(), get(), get()) }
     single<AssetRepository> { AssetRepositoryImpl(get(), get(), get(), get()) }
     single<AssetDetailRepository> { AssetDetailRepositoryImpl(get(), get(), get()) }
     single<EventsRepository> { EventsRepositoryImpl(get(), get(), get()) }

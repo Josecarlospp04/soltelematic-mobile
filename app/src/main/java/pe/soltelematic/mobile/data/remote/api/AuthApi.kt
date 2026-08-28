@@ -1,5 +1,6 @@
 package pe.soltelematic.mobile.data.remote.api
 
+import pe.soltelematic.mobile.data.remote.dto.ForgotPasswordResponseDto
 import pe.soltelematic.mobile.data.remote.dto.ServerConfigDto
 import pe.soltelematic.mobile.data.remote.dto.TokenResponseDto
 import pe.soltelematic.mobile.data.remote.dto.UserDto
@@ -29,4 +30,12 @@ interface AuthApi {
 
     @GET("user")
     suspend fun getUser(): UserDto
+
+    // Sin auth (ver PUBLIC_ENDPOINTS/AuthInterceptor y el AuthApi "pelado" en NetworkModule):
+    // se llama antes de tener sesión, así que nunca debe llevar Bearer.
+    @FormUrlEncoded
+    @POST("forgot")
+    suspend fun forgotPassword(
+        @Field("email") email: String
+    ): ForgotPasswordResponseDto
 }

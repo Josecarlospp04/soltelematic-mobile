@@ -14,6 +14,7 @@ import pe.soltelematic.mobile.domain.repository.AuthRepository
 import pe.soltelematic.mobile.ui.account.AccountScreen
 import pe.soltelematic.mobile.ui.assetdetail.AssetDetailScreen
 import pe.soltelematic.mobile.ui.events.EventsScreen
+import pe.soltelematic.mobile.ui.forgot.ForgotPasswordScreen
 import pe.soltelematic.mobile.ui.history.HistoryScreen
 import pe.soltelematic.mobile.ui.login.LoginScreen
 import pe.soltelematic.mobile.ui.map.MapScreen
@@ -52,8 +53,14 @@ fun SoltelematicNavHost(
                     navController.navigate(Destination.Map.route) {
                         popUpTo(Destination.Login.route) { inclusive = true }
                     }
+                },
+                onNavigateToForgotPassword = {
+                    navController.navigate(Destination.ForgotPassword.route)
                 }
             )
+        }
+        composable(Destination.ForgotPassword.route) {
+            ForgotPasswordScreen(onBack = { navController.popBackStack() })
         }
         composable(Destination.Map.route) {
             MapScreen(
