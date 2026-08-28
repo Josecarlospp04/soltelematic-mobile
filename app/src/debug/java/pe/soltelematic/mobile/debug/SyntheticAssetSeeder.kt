@@ -39,10 +39,15 @@ private val STATUS_TYPES = listOf("online", "offline", "ack", "engine", "blocked
 /**
  * Inserta unidades sintéticas directamente en Room (assetDao.upsertAll), sin pasar por
  * AssetsApi ni por AssetRepositoryImpl.refresh(): es una prueba de carga del mapa/clustering/
- * MarkerIconCache, no una prueba de la API real. Vive fuera de `main` en cuanto a uso: solo se
- * inyecta (ver di/DebugModule.kt) y se muestra en UI (ver MapScreen.kt) cuando
- * BuildConfig.DEBUG es true, pero además valida en tiempo de ejecución por si algo la invoca
- * desde otro sitio en el futuro.
+ * MarkerIconCache, no una prueba de la API real. Vive fuera de `main`: solo se inyecta (ver
+ * di/DebugModule.kt), pero además valida en tiempo de ejecución por si algo la invoca desde
+ * otro sitio en el futuro.
+ *
+ * Sin botón en la UI (se quitó DebugSeedFab, ver historial de git si hace falta reconstruirlo):
+ * para usarla de nuevo, inyectar con koinInject<SyntheticAssetSeeder>() en cualquier composable
+ * de un build debug y llamar scope.launch { seeder.seed() }, o agregar temporalmente un botón
+ * que haga lo mismo. Se mantiene registrada en Koin (di/DebugModule.kt) para que esto no
+ * requiera reconectar nada, solo el punto de entrada.
  */
 class SyntheticAssetSeeder(private val assetDao: AssetDao) {
 

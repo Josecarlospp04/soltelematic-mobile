@@ -196,8 +196,6 @@ fun MapScreen(
                     contentDescription = stringResource(R.string.map_toggle_geofences)
                 )
             }
-
-            DebugSeedFab()
         }
     }
 
