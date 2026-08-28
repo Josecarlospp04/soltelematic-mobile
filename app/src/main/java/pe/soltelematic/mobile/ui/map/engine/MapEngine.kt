@@ -1,5 +1,6 @@
 package pe.soltelematic.mobile.ui.map.engine
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import pe.soltelematic.mobile.domain.model.Geofence
@@ -61,6 +62,10 @@ interface MapEngine {
         // Nunca clicables (ver GoogleMapEngine): competirían con el toque para seleccionar unidades.
         geofences: List<Geofence>,
         onMarkerClick: (Int) -> Unit,
-        onMapClick: () -> Unit
+        onMapClick: () -> Unit,
+        // Espacio real ocupado por los overlays de MapScreen (barra de búsqueda + chips arriba,
+        // columna de FABs a la derecha), medido en runtime, no un margen fijo. El motor lo usa
+        // para que ni sus controles propios ni el encuadre (fitAll) queden debajo de esos overlays.
+        contentPadding: PaddingValues
     )
 }

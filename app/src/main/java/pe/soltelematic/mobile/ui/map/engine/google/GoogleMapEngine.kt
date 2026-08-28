@@ -1,12 +1,21 @@
 package pe.soltelematic.mobile.ui.map.engine.google
 
 import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.dp
+import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Dash
 import com.google.android.gms.maps.model.Gap
 import com.google.android.gms.maps.model.LatLng
@@ -44,6 +53,20 @@ private val INACTIVE_GEOFENCE_STROKE_PATTERN: List<PatternItem> = listOf(Dash(20
 // no para geometría real: solo se usa para decidir qué geocerca dibujar encima de cuál.
 private const val METERS_PER_DEGREE_LATITUDE = 111_320.0
 
+// Centro aproximado de Perú, con zoom amplio para que se vea el país completo. Posición inicial
+// de la cámara mientras no hay datos: sin esto, CameraPositionState arranca en (0,0) -- frente a
+// África, la posición por defecto de Google Maps -- y el salto al encuadre real de la flota es
+// enorme y visible. Con esto el salto es corto (Perú -> zona real de la flota).
+private val PERU_CENTER = LatLng(-9.19, -75.0152)
+private const val PERU_INITIAL_ZOOM = 5f
+
+// Alto que ocupa la atribución de Google Maps (logo + "Google", obligatoria, no se puede
+// ocultar) en la esquina inferior. La dibuja el propio SDK, no es un composable de la app, así
+// que no se puede medir con onSizeChanged como el resto de los overlays (ver MapScreen.kt) --
+// de ahí que sea una constante y no una medición. Con margen generoso a propósito: un marcador
+// justo al ras del logo se ve tan mal como uno tapado por él.
+private val GOOGLE_ATTRIBUTION_RESERVED_HEIGHT = 40.dp
+
 /**
  * Implementación sobre Google Maps SDK (maps-compose + maps-compose-utils para clustering).
  * Es la única clase del proyecto que puede importar de com.google.android.gms.maps o
@@ -62,7 +85,9 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
 
     @Composable
     override fun rememberCameraController(): MapCameraController {
-        val cameraPositionState = rememberCameraPositionState()
+        val cameraPositionState = rememberCameraPositionState {
+            position = CameraPosition.fromLatLngZoom(PERU_CENTER, PERU_INITIAL_ZOOM)
+        }
         val scope = rememberCoroutineScope()
         return remember(cameraPositionState, scope) {
             GoogleMapCameraController(cameraPositionState, scope)
@@ -78,7 +103,8 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         myLocationEnabled: Boolean,
         geofences: List<Geofence>,
         onMarkerClick: (Int) -> Unit,
-        onMapClick: () -> Unit
+        onMapClick: () -> Unit,
+        contentPadding: PaddingValues
     ) {
         // Casteo seguro: el único MapCameraController que existe hoy es el que devuelve
         // rememberCameraController() de esta misma clase.
@@ -86,6 +112,22 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val clusteringState = remember { ClusteringState() }
+        val density = LocalDensity.current
+        val layoutDirection = LocalLayoutDirection.current
+
+        // contentPadding solo trae lo que MapScreen puede medir (barra+chips arriba, columna de
+        // FABs a la derecha, ver MapScreen.kt) -- abajo hace falta sumar lo que le corresponde
+        // a este motor concreto: la barra de navegación del sistema (safeDrawing, insets reales,
+        // no una constante) más la atribución de Google (GOOGLE_ATTRIBUTION_RESERVED_HEIGHT,
+        // constante porque el SDK la dibuja él mismo). Otro motor (p. ej. MapLibre) tendría su
+        // propio cálculo acá, no en MapScreen.
+        val systemNavigationBarHeight = with(density) { WindowInsets.safeDrawing.getBottom(density).toDp() }
+        val effectiveContentPadding = PaddingValues(
+            start = contentPadding.calculateStartPadding(layoutDirection),
+            top = contentPadding.calculateTopPadding(),
+            end = contentPadding.calculateEndPadding(layoutDirection),
+            bottom = contentPadding.calculateBottomPadding() + systemNavigationBarHeight + GOOGLE_ATTRIBUTION_RESERVED_HEIGHT
+        )
 
         GoogleMap(
             modifier = modifier,
@@ -94,6 +136,10 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
             // permiso ACCESS_FINE_LOCATION; si no, el SDK de Google Maps lanza SecurityException.
             properties = MapProperties(isMyLocationEnabled = myLocationEnabled),
             uiSettings = MapUiSettings(myLocationButtonEnabled = false, zoomControlsEnabled = false),
+            // No es solo estético: el SDK usa este padding también para calcular el bounding box
+            // visible en newLatLngBounds (ver GoogleMapCameraController.fitAll), así que un
+            // encuadre automático ya no deja marcadores debajo de la barra de búsqueda/chips/FABs.
+            contentPadding = effectiveContentPadding,
             onMapClick = { onMapClick() }
         ) {
             // Los marcadores de unidad se dibujan siempre por encima de los overlays de suelo

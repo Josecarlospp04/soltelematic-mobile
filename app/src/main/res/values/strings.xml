@@ -39,6 +39,13 @@
 
     <string name="asset_unnamed">Unidad sin nombre</string>
     <string name="asset_status_unknown">Estado desconocido</string>
+    <!-- Etiquetas propias por status.type, no el texto crudo del servidor (jerga de protocolo
+         como "ACK"): ver AssetStatus.label() en AssetBottomSheet.kt y AssetDetailScreen.kt. -->
+    <string name="asset_status_ack">Detenida</string>
+    <string name="asset_status_offline">Sin reportar</string>
+    <string name="asset_status_online">En ruta</string>
+    <string name="asset_status_engine">En ralentí</string>
+    <string name="asset_status_blocked">Bloqueada</string>
     <string name="asset_last_seen">Sin reportar %1$s</string>
     <string name="asset_ignition_on">Motor encendido</string>
     <string name="asset_ignition_off">Motor apagado</string>

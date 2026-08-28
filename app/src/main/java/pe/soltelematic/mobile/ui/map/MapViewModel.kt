@@ -2,8 +2,11 @@ package pe.soltelematic.mobile.ui.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -14,6 +17,7 @@ import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
+import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.repository.AssetRepository
 import pe.soltelematic.mobile.domain.repository.GeofencesRepository
 
@@ -33,6 +37,18 @@ class MapViewModel(
     // rara vez. El flag evita repetir la llamada cada vez que el interruptor pasa a "on".
     private var geofencesRequested = false
 
+    // Encuadre automático UNA SOLA VEZ, cuando lleguen las primeras posiciones -- nunca en cada
+    // ciclo de polling (cada 7s), o la cámara se movería sola mientras el usuario mira el mapa.
+    // Vive como var de instancia (no en MapUiState): este ViewModel está scoped a la entrada del
+    // NavHost para Destination.Map, y el logout hace popUpTo(...){inclusive=true} sobre todo el
+    // grafo (ver SoltelematicNavHost), así que un nuevo login siempre trae una instancia nueva de
+    // MapViewModel con este flag en false -- VERIFICADO en dispositivo (logout -> login -> el
+    // mapa vuelve a encuadrar solo), no solo razonado sobre el papel.
+    private var hasAutoFitted = false
+
+    private val _autoFitCamera = MutableSharedFlow<List<GeoPoint>>(extraBufferCapacity = 1)
+    val autoFitCamera: SharedFlow<List<GeoPoint>> = _autoFitCamera.asSharedFlow()
+
     init {
         viewModelScope.launch {
             assetRepository.observeAssets().collect { assets ->
@@ -42,6 +58,7 @@ class MapViewModel(
                         hasBlockedAssets = assets.any { asset -> asset.status.type == AssetStatusType.BLOCKED }
                     )
                 }
+                triggerAutoFitIfNeeded()
             }
         }
         viewModelScope.launch {
@@ -75,6 +92,21 @@ class MapViewModel(
         viewModelScope.launch {
             userPreferences.setShowGeofences(!_uiState.value.showGeofences)
         }
+    }
+
+    // Toda la flota (state.assets) salvo que el usuario ya haya tocado un filtro o buscado algo
+    // antes de que llegue el primer refresco (arranque lento): ahí se respeta esa intención y se
+    // encuadra solo lo visible (state.visibleAssets), en vez de saltar a toda la flota e ignorar
+    // lo que el usuario acaba de filtrar.
+    private suspend fun triggerAutoFitIfNeeded() {
+        if (hasAutoFitted) return
+        val state = _uiState.value
+        val hasActiveFilterOrSearch = state.activeFilter != AssetFilter.ALL || state.searchQuery.isNotBlank()
+        val candidateAssets = if (hasActiveFilterOrSearch) state.visibleAssets else state.assets
+        val positions = candidateAssets.mapNotNull { it.position }
+        if (positions.isEmpty()) return
+        hasAutoFitted = true
+        _autoFitCamera.emit(positions)
     }
 
     private fun loadGeofencesIfNeeded() {

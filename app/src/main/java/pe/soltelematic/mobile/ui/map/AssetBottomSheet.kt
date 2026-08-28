@@ -27,6 +27,7 @@ import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.time.LastSeenFreshness
 import pe.soltelematic.mobile.core.time.lastSeenFreshness
 import pe.soltelematic.mobile.domain.model.Asset
+import pe.soltelematic.mobile.domain.model.AssetStatus
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.Ignition
 
@@ -74,17 +75,37 @@ private fun BottomSheetActions(onOpenDetail: () -> Unit, onOpenHistory: () -> Un
 
 @Composable
 private fun StatusChip(asset: Asset) {
-    // Título y color vienen del servidor y se muestran tal cual: no se traducen ni recolorean.
+    // Color viene del servidor y se muestra tal cual: no se recolorea. El texto ya no ("ACK" es
+    // jerga de protocolo) -- ver AssetStatus.label().
     val color = asset.status.colorHex.toComposeColorOrDefault()
     AssistChip(
         onClick = {},
         enabled = false,
-        label = { Text(asset.status.title ?: stringResource(R.string.asset_status_unknown)) },
+        label = { Text(asset.status.label()) },
         colors = AssistChipDefaults.assistChipColors(
             disabledContainerColor = color.copy(alpha = 0.15f),
             disabledLabelColor = color
         )
     )
+}
+
+/**
+ * Etiqueta propia por status.type en vez del status.title crudo del servidor (jerga de
+ * protocolo, p. ej. "ACK"). Si el tipo no es ninguno de los cinco conocidos, cae de vuelta al
+ * title del servidor -- mostrar la jerga de un estado nuevo que la plataforma agregue mañana es
+ * más útil que "Desconocido" a secas -- y solo si ni eso hay, a asset_status_unknown.
+ *
+ * Duplicada en AssetDetailScreen.kt (mismo criterio que toComposeColorOrDefault más abajo):
+ * seis líneas de mapeo no justifican compartir una función entre las dos pantallas.
+ */
+@Composable
+private fun AssetStatus.label(): String = when (type) {
+    AssetStatusType.ACK -> stringResource(R.string.asset_status_ack)
+    AssetStatusType.OFFLINE -> stringResource(R.string.asset_status_offline)
+    AssetStatusType.ONLINE -> stringResource(R.string.asset_status_online)
+    AssetStatusType.ENGINE -> stringResource(R.string.asset_status_engine)
+    AssetStatusType.BLOCKED -> stringResource(R.string.asset_status_blocked)
+    AssetStatusType.UNKNOWN -> title ?: stringResource(R.string.asset_status_unknown)
 }
 
 @Composable

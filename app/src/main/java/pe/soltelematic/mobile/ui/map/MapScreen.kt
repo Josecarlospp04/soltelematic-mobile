@@ -11,6 +11,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -43,14 +44,18 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -83,6 +88,22 @@ fun MapScreen(
 
     val cameraController = mapEngine.rememberCameraController()
 
+    LaunchedEffect(Unit) {
+        viewModel.autoFitCamera.collect { positions -> cameraController.fitAll(positions) }
+    }
+
+    // Alto real de la barra de búsqueda + chips y ancho real de la columna de FABs, medidos con
+    // onSizeChanged (no una constante a ojo): ambos ya incluyen su propio windowInsetsPadding +
+    // padding(16.dp) de abajo, así que las safe insets quedan cubiertas sin duplicar ese cálculo.
+    // Se le pasan a mapEngine.Content como contentPadding para que ni los controles del SDK ni el
+    // encuadre (fitAll) dejen marcadores debajo de esos overlays.
+    var topOverlayHeightPx by remember { mutableIntStateOf(0) }
+    var fabColumnWidthPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val mapContentPadding = remember(topOverlayHeightPx, fabColumnWidthPx, density) {
+        with(density) { PaddingValues(top = topOverlayHeightPx.toDp(), end = fabColumnWidthPx.toDp()) }
+    }
+
     // remember(uiState.visibleAssets): Asset es data class, así que dos listas con el mismo
     // contenido son iguales -- un refresco que no cambia nada no reconstruye los marcadores.
     val markers = remember(uiState.visibleAssets) {
@@ -113,7 +134,8 @@ fun MapScreen(
             myLocationEnabled = hasLocationPermission,
             geofences = uiState.visibleGeofences,
             onMarkerClick = viewModel::onAssetSelected,
-            onMapClick = viewModel::onBottomSheetDismissed
+            onMapClick = viewModel::onBottomSheetDismissed,
+            contentPadding = mapContentPadding
         )
 
         // El mapa dibuja a pantalla completa (enableEdgeToEdge en MainActivity), pero estos
@@ -121,7 +143,11 @@ fun MapScreen(
         // barra de navegación del sistema -- en algunos dispositivos eso no es solo estético,
         // el sistema le gana el toque a la app en esa franja (ver FAB de debug del Bloque 7).
         Column(
+            // onSizeChanged primero en la cadena (no al final): así mide el tamaño final del
+            // nodo, después de que windowInsetsPadding y padding(16dp) ya sumaron lo suyo, en vez
+            // del tamaño del contenido interno sin esos márgenes.
             modifier = Modifier
+                .onSizeChanged { size -> topOverlayHeightPx = size.height }
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 .padding(16.dp)
@@ -144,6 +170,7 @@ fun MapScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
+                .onSizeChanged { size -> fabColumnWidthPx = size.width }
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
                 .padding(16.dp)
         ) {
