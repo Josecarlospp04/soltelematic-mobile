@@ -9,8 +9,9 @@ data class Asset(
     val name: String?,
     val active: Boolean?,
     val position: GeoPoint?,
-    val speedKph: Double?, // para lógica (p. ej. bloqueo de comandos por velocidad)
+    val speedKph: Double?, // para lógica (p. ej. bloqueo de comandos por velocidad) -- pese al nombre, es speed.value tal cual, no necesariamente kph
     val speedText: String?, // ya formateado por el servidor, para mostrar
+    val speedUnit: String?, // speed.unit crudo -- normalizar con core/format/SpeedFormat.kt antes de mostrar, nunca a mano
     val ignition: Ignition,
     val status: AssetStatus,
     val icon: AssetIcon,

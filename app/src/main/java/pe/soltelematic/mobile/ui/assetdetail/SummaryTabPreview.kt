@@ -64,7 +64,10 @@ private fun AssetDetailPreviewSample(name: String, statusTitle: String? = null):
     id = 1,
     name = name,
     status = AssetStatus(type = AssetStatusType.UNKNOWN, title = statusTitle, colorHex = "#9E9E9E"),
-    speedText = "0 kph",
+    // unit = "kph" crudo a propósito: el preview también sirve para confirmar visualmente que
+    // normalizeSpeedUnit() lo muestra como "KM/H", una sola vez (ver SpeedStatusRow).
+    speedValue = 0.0,
+    speedUnit = "kph",
     ignition = Ignition.ON,
     position = null,
     lastSeenAt = Instant.parse("2026-08-29T18:59:05Z"),

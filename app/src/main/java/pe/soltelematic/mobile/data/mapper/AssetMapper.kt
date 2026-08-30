@@ -50,6 +50,7 @@ fun AssetEntity.toDomain(): Asset = Asset(
     position = if (lat != null && lng != null) GeoPoint(lat, lng) else null,
     speedKph = speedValue,
     speedText = speedHuman,
+    speedUnit = speedUnit,
     ignition = when (engineStatus) {
         null -> Ignition.NO_SENSOR
         false -> Ignition.OFF

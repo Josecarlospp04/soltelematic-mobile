@@ -38,7 +38,6 @@
     <string name="map_filter_all">Todas</string>
     <string name="map_filter_on_route">En ruta</string>
     <string name="map_filter_stopped">Detenidas</string>
-    <string name="map_speed_unit">KM/H</string>
     <string name="map_course_format">%1$.0f°</string>
     <string name="map_filter_blocked">Bloqueadas</string>
     <string name="map_filter_offline">Sin reportar</string>

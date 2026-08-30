@@ -11,7 +11,8 @@ data class AssetDetail(
     val id: Int,
     val name: String?,
     val status: AssetStatus, // reutiliza el mismo tipo que Asset: mismo servidor, mismo criterio de color/título
-    val speedText: String?,
+    val speedValue: Double?, // speed.value crudo -- el número, sin unidad
+    val speedUnit: String?, // speed.unit crudo -- normalizar con core/format/SpeedFormat.kt antes de mostrar, nunca a mano
     val ignition: Ignition,
     val position: GeoPoint?,
     val lastSeenAt: Instant?,

@@ -36,6 +36,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.core.format.formatDurationCompact
+import pe.soltelematic.mobile.core.format.isDurationStatKey
+import pe.soltelematic.mobile.core.format.normalizeSpeedUnitSuffix
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.HistoryDriveLeg
 import pe.soltelematic.mobile.domain.model.HistoryLeg
@@ -107,7 +110,8 @@ fun HistoryTimeline(
 @Composable
 private fun RouteSummarySection(legs: List<HistoryLeg>, periodStats: List<UnitStat>) {
     val distance = periodStats.valueFor("distance")
-    val movingTime = periodStats.valueFor("duration")
+    // Solo horas y minutos, redondeado -- ver core/format/DurationFormat.kt.
+    val movingTime = formatDurationCompact(periodStats.valueFor("duration"))
     val stopCount = legs.count { it is HistoryStopLeg }
     val extraStats = periodStats.filterNot { it.key == "distance" || it.key == "duration" }
 
@@ -122,7 +126,7 @@ private fun RouteSummarySection(legs: List<HistoryLeg>, periodStats: List<UnitSt
                 modifier = Modifier.weight(1f)
             )
             RouteSummaryCard(
-                value = movingTime ?: "-",
+                value = movingTime,
                 label = stringResource(R.string.history_summary_moving_time),
                 modifier = Modifier.weight(1f)
             )
@@ -211,7 +215,17 @@ private fun ExtraStatsSection(stats: List<UnitStat>) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
                             )
-                            Text(text = stat.value ?: "-", style = MaterialTheme.typography.bodyMedium)
+                            // Dinámico (ver comentario de arriba): cualquier key "*_duration" que
+                            // el servidor agregue mañana también pierde los segundos, sin listar
+                            // claves a mano -- ver core/format/DurationFormat.kt.
+                            Text(
+                                text = if (isDurationStatKey(stat.key)) {
+                                    formatDurationCompact(stat.value)
+                                } else {
+                                    stat.value ?: "-"
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
                     }
                 }
@@ -293,10 +307,16 @@ private fun HistoryLeg.subtitleText(): String {
     val parts = when (this) {
         is HistoryDriveLeg -> listOfNotNull(
             stats.valueFor("distance"),
-            stats.valueFor("duration"),
-            stats.valueFor("speed_max")
+            // Solo horas y minutos, redondeado -- ver core/format/DurationFormat.kt. Solo se omite
+            // si no hay dato real (formatDurationCompact devuelve "-"), igual que las otras partes.
+            stats.valueFor("duration")?.let(::formatDurationCompact)?.takeUnless { it == "-" },
+            // speed_max ya viene con la unidad pegada del servidor ("16 kph") -- se normaliza acá
+            // igual que en el resto de la app (ver core/format/SpeedFormat.kt).
+            stats.valueFor("speed_max")?.let(::normalizeSpeedUnitSuffix)
         )
-        is HistoryStopLeg -> listOfNotNull(stats.valueFor("duration"))
+        is HistoryStopLeg -> listOfNotNull(
+            stats.valueFor("duration")?.let(::formatDurationCompact)?.takeUnless { it == "-" }
+        )
     }
     return parts.joinToString(" · ")
 }

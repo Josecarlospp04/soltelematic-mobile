@@ -32,7 +32,8 @@ fun AssetDetailDto.toDomain(iconUrlResolver: IconUrlResolver): AssetDetail = Ass
         title = status?.title,
         colorHex = status?.color
     ),
-    speedText = speed?.human,
+    speedValue = speed?.value,
+    speedUnit = speed?.unit,
     ignition = when (engineStatus) {
         null -> Ignition.NO_SENSOR
         false -> Ignition.OFF

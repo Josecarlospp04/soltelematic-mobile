@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.core.format.normalizeSpeedUnitSuffix
 import pe.soltelematic.mobile.domain.model.AlertEvent
 import pe.soltelematic.mobile.domain.model.AlertEventType
 import pe.soltelematic.mobile.ui.events.AddressResolution
@@ -90,7 +91,11 @@ fun EventCard(
                 // otro tipo trae umbral, esto lo muestra solo, sin tocar este código.
                 if (!event.detail.isNullOrBlank() && event.speedText != null) {
                     Text(
-                        text = stringResource(R.string.events_speed_vs_limit, event.speedText, event.detail),
+                        text = stringResource(
+                            R.string.events_speed_vs_limit,
+                            normalizeSpeedUnitSuffix(event.speedText),
+                            normalizeSpeedUnitSuffix(event.detail)
+                        ),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

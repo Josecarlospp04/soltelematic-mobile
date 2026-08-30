@@ -40,6 +40,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.core.format.formatDurationCompact
+import pe.soltelematic.mobile.core.format.isDurationStatKey
+import pe.soltelematic.mobile.core.format.normalizeSpeedUnit
+import pe.soltelematic.mobile.core.format.normalizeSpeedUnitSuffix
 import pe.soltelematic.mobile.core.time.LastSeenFreshness
 import pe.soltelematic.mobile.core.time.lastSeenFreshness
 import pe.soltelematic.mobile.domain.model.AssetDetail
@@ -61,6 +65,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private val LAST_REPORT_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 
@@ -117,12 +122,15 @@ private fun SpeedStatusRow(detail: AssetDetail) {
         ) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs)) {
                 Text(
-                    text = detail.speedText ?: "-",
+                    text = detail.speedValue?.roundToInt()?.toString() ?: "-",
                     style = SoltelematicMetricTypography.large,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                // normalizeSpeedUnit, no un literal ni el string "KM/H" repetido a mano -- ver
+                // core/format/SpeedFormat.kt. Antes acá se mostraba detail.speedText (que el
+                // servidor ya manda como "0 kph") MÁS este mismo texto al lado, duplicado.
                 Text(
-                    text = stringResource(R.string.map_speed_unit),
+                    text = normalizeSpeedUnit(detail.speedUnit),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = SoltelematicSpacing.xs)
@@ -404,7 +412,16 @@ private fun StatTile(stat: UnitStat, maxValue: Double?, modifier: Modifier = Mod
             verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs)
         ) {
             Text(
-                text = stat.value ?: "-",
+                // Lista dinámica (ver comentario de arriba) -- puede traer "speed_max" con la
+                // unidad pegada ("16 kph"), confirmado contra un payload real. normalizeSpeedUnitSuffix
+                // es un no-op seguro para cualquier stat que no termine en una unidad de velocidad.
+                // Las claves de duración (drive_duration, stop_duration...) van por
+                // formatDurationCompact en vez de mostrarse crudas con segundos.
+                text = if (isDurationStatKey(stat.key)) {
+                    formatDurationCompact(stat.value)
+                } else {
+                    stat.value?.let(::normalizeSpeedUnitSuffix) ?: "-"
+                },
                 style = SoltelematicMetricTypography.medium,
                 color = MaterialTheme.colorScheme.onSurface
             )

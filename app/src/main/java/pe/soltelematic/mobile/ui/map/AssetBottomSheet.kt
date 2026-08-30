@@ -34,6 +34,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.core.format.formatDurationCompact
+import pe.soltelematic.mobile.core.format.normalizeSpeedUnit
+import pe.soltelematic.mobile.core.format.normalizeSpeedUnitSuffix
 import pe.soltelematic.mobile.domain.model.Asset
 import pe.soltelematic.mobile.domain.model.AssetStatus
 import pe.soltelematic.mobile.domain.model.AssetStatusType
@@ -108,7 +111,9 @@ private fun RouteStatsRow(stats: List<UnitStat>, isLoading: Boolean) {
             modifier = Modifier.weight(1f)
         )
         RouteStatTile(
-            value = stats.valueFor("drive_duration"),
+            // Solo horas y minutos, redondeado -- el segundo crudo del servidor parte el texto
+            // en dos líneas (ver core/format/DurationFormat.kt).
+            value = formatDurationCompact(stats.valueFor("drive_duration")),
             label = stringResource(R.string.asset_stat_drive_duration),
             isLoading = isLoading,
             modifier = Modifier.weight(1f)
@@ -117,7 +122,7 @@ private fun RouteStatsRow(stats: List<UnitStat>, isLoading: Boolean) {
             // stop_duration (tiempo sin movimiento) -- distinto de "en ralentí" (motor encendido
             // sin moverse, ver AssetStatusType.ENGINE): no se mezclan, son dos métricas separadas
             // en la respuesta real del servidor.
-            value = stats.valueFor("stop_duration"),
+            value = formatDurationCompact(stats.valueFor("stop_duration")),
             label = stringResource(R.string.asset_stat_stop_duration),
             isLoading = isLoading,
             modifier = Modifier.weight(1f)
@@ -243,13 +248,16 @@ private fun SpeedRow(asset: Asset) {
     val kph = asset.speedKph
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs)) {
         Text(
-            text = kph?.roundToInt()?.toString() ?: asset.speedText ?: "-",
+            // Si no hay speedKph (speed.value) se cae al speedText crudo del servidor -- ese sí
+            // trae su propia unidad pegada ("0 kph"), normalizada acá también para no dejar un
+            // "kph" suelto en el único caso donde no se muestra el Text de unidad de abajo.
+            text = kph?.roundToInt()?.toString() ?: asset.speedText?.let(::normalizeSpeedUnitSuffix) ?: "-",
             style = SoltelematicMetricTypography.large,
             color = MaterialTheme.colorScheme.onSurface
         )
         if (kph != null) {
             Text(
-                text = stringResource(R.string.map_speed_unit),
+                text = normalizeSpeedUnit(asset.speedUnit),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = SoltelematicSpacing.xs)
