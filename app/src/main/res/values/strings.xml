@@ -98,8 +98,8 @@
 
     <string name="history_title">Historial</string>
     <string name="history_cancel">Cancelar</string>
-    <string name="history_leg_stop_fallback_title">Parada</string>
-    <string name="history_leg_drive_fallback_title">Viaje</string>
+    <string name="history_leg_stop_title">Detenido</string>
+    <string name="history_leg_drive_title">Conduciendo</string>
     <string name="history_date_today">Hoy</string>
     <string name="history_date_yesterday">Ayer</string>
     <string name="history_date_last_7_days">7 días</string>
@@ -108,7 +108,7 @@
     <string name="history_date_range_max_caption">Rango máximo 31 días</string>
     <string name="history_open_date_picker">Elegir fecha</string>
     <string name="history_summary_distance">Distancia</string>
-    <string name="history_summary_moving_time">Tiempo en movimiento</string>
+    <string name="history_summary_driving_time">Tiempo de conducción</string>
     <string name="history_summary_stops">Paradas</string>
     <string name="history_summary_more_title">Más datos</string>
     <string name="history_empty_title">Sin viajes este día</string>

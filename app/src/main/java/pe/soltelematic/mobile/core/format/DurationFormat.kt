@@ -17,6 +17,22 @@ private const val NO_DATA = "-" // mismo guion que ya usa el resto de la app par
  */
 fun formatDurationCompact(raw: String?): String {
     val totalSeconds = raw?.let(::parseDurationSeconds) ?: return NO_DATA
+    return formatSecondsCompact(totalSeconds)
+}
+
+/**
+ * Igual que formatDurationCompact, pero sumando varias duraciones "HH:MM:SS" antes de formatear
+ * -- para totales calculados del lado del cliente (ej. "Tiempo de conducción" = suma de todos los
+ * tramos de manejo del periodo) en vez de depender de una clave de total que el servidor no
+ * siempre manda. Valores no parseables se ignoran en la suma, igual que un valor individual no
+ * parseable ya caía en NO_DATA antes de este cambio.
+ */
+fun sumDurationsCompact(rawValues: List<String?>): String {
+    val totalSeconds = rawValues.sumOf { it?.let(::parseDurationSeconds) ?: 0L }
+    return formatSecondsCompact(totalSeconds)
+}
+
+private fun formatSecondsCompact(totalSeconds: Long): String {
     if (totalSeconds <= 0) return NO_DATA
     if (totalSeconds < 60) return "<1 min"
 

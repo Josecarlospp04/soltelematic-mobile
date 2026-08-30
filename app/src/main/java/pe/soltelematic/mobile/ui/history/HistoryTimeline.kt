@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.format.formatDurationCompact
 import pe.soltelematic.mobile.core.format.isDurationStatKey
-import pe.soltelematic.mobile.core.format.normalizeSpeedUnitSuffix
+import pe.soltelematic.mobile.core.format.sumDurationsCompact
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.HistoryDriveLeg
 import pe.soltelematic.mobile.domain.model.HistoryLeg
@@ -102,16 +102,18 @@ fun HistoryTimeline(
 }
 
 /**
- * Distancia/tiempo en movimiento/paradas siempre visibles en 3 tarjetas iguales (ver mockup);
- * paradas se cuenta acá (no viene en periodStats, es estructural). Cualquier otro stat del
- * periodo (p. ej. "fuel_consumption_153", dinámico por sensor -- ver HistoryStatDto) sigue en una
- * sección colapsable aparte, sin asumir campos fijos para esos.
+ * Distancia/tiempo de conducción/paradas siempre visibles en 3 tarjetas iguales (ver mockup);
+ * paradas se cuenta acá (no viene en periodStats, es estructural). "Tiempo de conducción" se
+ * calcula sumando la duración de cada HistoryDriveLeg en vez de leer un total del servidor: la
+ * clave de total no siempre llega (ver conversación con el usuario), y calculándolo acá el
+ * número de arriba siempre cuadra con la suma de los tramos de manejo que se ven abajo. Cualquier
+ * otro stat del periodo (p. ej. "fuel_consumption_153", dinámico por sensor -- ver HistoryStatDto)
+ * sigue en una sección colapsable aparte, sin asumir campos fijos para esos.
  */
 @Composable
 private fun RouteSummarySection(legs: List<HistoryLeg>, periodStats: List<UnitStat>) {
     val distance = periodStats.valueFor("distance")
-    // Solo horas y minutos, redondeado -- ver core/format/DurationFormat.kt.
-    val movingTime = formatDurationCompact(periodStats.valueFor("duration"))
+    val drivingTime = sumDurationsCompact(legs.filterIsInstance<HistoryDriveLeg>().map { it.stats.valueFor("duration") })
     val stopCount = legs.count { it is HistoryStopLeg }
     val extraStats = periodStats.filterNot { it.key == "distance" || it.key == "duration" }
 
@@ -126,8 +128,8 @@ private fun RouteSummarySection(legs: List<HistoryLeg>, periodStats: List<UnitSt
                 modifier = Modifier.weight(1f)
             )
             RouteSummaryCard(
-                value = movingTime,
-                label = stringResource(R.string.history_summary_moving_time),
+                value = drivingTime,
+                label = stringResource(R.string.history_summary_driving_time),
                 modifier = Modifier.weight(1f)
             )
             RouteSummaryCard(
@@ -259,26 +261,37 @@ private fun HistoryLegRow(
             LegDot(leg)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = leg.title ?: leg.fallbackTitle(),
+                    text = leg.displayTitle(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                val subtitle = leg.subtitleText()
-                if (subtitle.isNotEmpty()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                // Intervalo explícito de inicio a fin -- una sola hora suelta ("00:44") no deja
+                // claro si es el inicio, el fin o parte de la duración (confirmado con el
+                // usuario). start/end.time vienen ambos del servidor por tramo, no se calculan.
+                Text(
+                    text = leg.intervalText(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (leg is HistoryDriveLeg) {
+                    val distance = leg.stats.valueFor("distance")
+                    if (distance != null) {
+                        Text(
+                            text = distance,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 if (leg is HistoryStopLeg) {
                     AddressLine(addressResolution)
                 }
             }
-            // Hora de inicio del tramo -- orden cronológico de la lista ya se lee por el inicio
-            // de cada fila, no por su fin.
+            // Duración del tramo -- antes esta columna mostraba la hora de inicio, ahora eso vive
+            // explícito en el intervalo de la segunda línea; acá va la duración para que cuadre a
+            // simple vista con el intervalo mostrado a la izquierda.
             Text(
-                text = leg.start.time.toTimeText(),
+                text = formatDurationCompact(leg.stats.valueFor("duration")),
                 style = SoltelematicMetricTypography.small,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -297,29 +310,12 @@ private fun LegDot(leg: HistoryLeg) {
 }
 
 /**
- * "distancia · duración · velocidad máx" para un viaje, "duración" para una parada. "estado del
- * motor" del mockup no se agrega para paradas: no hay una key confirmada para eso en
- * HistoryStatDto (dinámico, ver HistoryRouteMapper.kt) -- no se inventa. speed_max sigue el mismo
- * criterio best-effort que duration/distance (ya usados así antes de este cambio): si el servidor
- * no manda la key, el segmento simplemente no aparece.
+ * "HH:mm – HH:mm" tal cual lo manda el servidor por tramo (start/end.time de HistoryEndpoint) --
+ * nunca se calcula sumando la duración al inicio, porque el propio tramo ya trae su hora de fin
+ * real. "--:--" solo si el servidor no manda ese lado en particular (no debería pasar en la
+ * práctica), nunca un valor inventado.
  */
-private fun HistoryLeg.subtitleText(): String {
-    val parts = when (this) {
-        is HistoryDriveLeg -> listOfNotNull(
-            stats.valueFor("distance"),
-            // Solo horas y minutos, redondeado -- ver core/format/DurationFormat.kt. Solo se omite
-            // si no hay dato real (formatDurationCompact devuelve "-"), igual que las otras partes.
-            stats.valueFor("duration")?.let(::formatDurationCompact)?.takeUnless { it == "-" },
-            // speed_max ya viene con la unidad pegada del servidor ("16 kph") -- se normaliza acá
-            // igual que en el resto de la app (ver core/format/SpeedFormat.kt).
-            stats.valueFor("speed_max")?.let(::normalizeSpeedUnitSuffix)
-        )
-        is HistoryStopLeg -> listOfNotNull(
-            stats.valueFor("duration")?.let(::formatDurationCompact)?.takeUnless { it == "-" }
-        )
-    }
-    return parts.joinToString(" · ")
-}
+private fun HistoryLeg.intervalText(): String = "${start.time.toTimeText()} – ${end.time.toTimeText()}"
 
 // Reutiliza los strings de dirección de la ficha (Sprint 2A): mismo significado ahí y acá.
 // resolution null = todavía no entró en pantalla (LaunchedEffect no ha corrido) -- se muestra
@@ -344,10 +340,13 @@ private fun AddressLine(resolution: AddressResolution?) {
 
 private fun List<UnitStat>.valueFor(key: String): String? = firstOrNull { it.key == key }?.value
 
+// Título fijo por tipo de tramo, no el title crudo del servidor ("Detener"/"Conducir", jerga de
+// backend) -- mismo criterio que status.title en SummaryTab/AssetBottomSheet: la app define su
+// propia etiqueta en vez de mostrar la del servidor tal cual.
 @Composable
-private fun HistoryLeg.fallbackTitle(): String = when (this) {
-    is HistoryStopLeg -> stringResource(R.string.history_leg_stop_fallback_title)
-    is HistoryDriveLeg -> stringResource(R.string.history_leg_drive_fallback_title)
+private fun HistoryLeg.displayTitle(): String = when (this) {
+    is HistoryStopLeg -> stringResource(R.string.history_leg_stop_title)
+    is HistoryDriveLeg -> stringResource(R.string.history_leg_drive_title)
 }
 
 private fun Instant?.toTimeText(): String = this?.let { TIME_FORMAT.format(it) } ?: "--:--"
