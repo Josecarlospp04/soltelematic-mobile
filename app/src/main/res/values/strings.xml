@@ -2,10 +2,14 @@
     <string name="app_name">SOLTELEMATIC</string>
 
     <string name="login_title">Iniciar sesión</string>
+    <string name="login_subtitle">Monitoreo de unidades en tiempo real</string>
     <string name="login_email_label">Correo</string>
+    <string name="login_email_placeholder">operaciones@empresa.pe</string>
     <string name="login_password_label">Contraseña</string>
+    <string name="login_password_placeholder">••••••••</string>
     <string name="login_show_password">Mostrar</string>
     <string name="login_hide_password">Ocultar</string>
+    <string name="login_remember_me">Recordarme</string>
     <string name="login_submit">Entrar</string>
     <string name="login_error_required_email">Ingresa tu correo</string>
     <string name="login_error_required_password">Ingresa tu contraseña</string>
@@ -14,6 +18,8 @@
     <string name="login_error_timeout">El servidor tardó demasiado en responder</string>
     <string name="login_error_server">Ocurrió un error en el servidor. Intenta de nuevo</string>
     <string name="login_forgot_password">¿Olvidaste tu contraseña?</string>
+    <string name="login_footer_network">Conectado a la red SOLTELEMATIC</string>
+    <string name="login_footer_version">v%1$s</string>
 
     <string name="forgot_title">Recuperar contraseña</string>
     <string name="forgot_back_content_description">Volver</string>
@@ -24,15 +30,16 @@
     <string name="forgot_confirmation_message">Si ese correo está registrado, recibirás instrucciones para restablecer tu contraseña</string>
     <string name="forgot_back_to_login">Volver al inicio de sesión</string>
 
-    <string name="map_search_placeholder">Buscar unidad</string>
+    <string name="map_search_placeholder">Buscar unidad, placa o conductor</string>
     <string name="map_search_clear">Limpiar búsqueda</string>
-    <string name="map_open_account">Cuenta</string>
     <string name="map_center_my_location">Centrar en mi ubicación</string>
     <string name="map_fit_all">Ajustar zoom a todas</string>
     <string name="map_toggle_geofences">Mostrar u ocultar geocercas</string>
     <string name="map_filter_all">Todas</string>
     <string name="map_filter_on_route">En ruta</string>
     <string name="map_filter_stopped">Detenidas</string>
+    <string name="map_speed_unit">KM/H</string>
+    <string name="map_course_format">%1$.0f°</string>
     <string name="map_filter_blocked">Bloqueadas</string>
     <string name="map_filter_offline">Sin reportar</string>
 
@@ -49,8 +56,11 @@
     <string name="asset_ignition_on">Motor encendido</string>
     <string name="asset_ignition_off">Motor apagado</string>
     <string name="asset_ignition_no_sensor">Sin sensor de ignición</string>
-    <string name="asset_open_detail">Ficha</string>
+    <string name="asset_open_detail">Ver detalle</string>
     <string name="asset_open_history">Historial</string>
+    <string name="asset_stat_distance_today">Distancia hoy</string>
+    <string name="asset_stat_drive_duration">Conducción</string>
+    <string name="asset_stat_stop_duration">Detenido</string>
 
     <string name="asset_detail_back">Volver</string>
     <string name="asset_detail_retry">Reintentar</string>
@@ -81,24 +91,39 @@
     <string name="asset_detail_action_history">Historial</string>
     <string name="asset_detail_action_share">Compartir</string>
     <string name="asset_detail_action_commands">Comandos</string>
-    <string name="asset_detail_action_commands_hint">Requiere confirmación biométrica</string>
+    <string name="asset_detail_action_commands_hint">Disponible próximamente</string>
+    <string name="asset_detail_command_stop">Parar motor</string>
+    <string name="asset_detail_command_start">Arrancar motor</string>
+    <string name="asset_detail_last_report">Último reporte %1$s</string>
+    <string name="asset_detail_location_title">Ubicación</string>
 
     <string name="history_title">Historial</string>
     <string name="history_cancel">Cancelar</string>
-    <string name="history_empty">Sin actividad este día</string>
     <string name="history_leg_stop_fallback_title">Parada</string>
     <string name="history_leg_drive_fallback_title">Viaje</string>
     <string name="history_date_today">Hoy</string>
     <string name="history_date_yesterday">Ayer</string>
     <string name="history_date_last_7_days">7 días</string>
-    <string name="history_date_custom">Elegir</string>
+    <string name="history_date_custom">Personalizado</string>
     <string name="history_date_range_confirm">Aceptar</string>
-    <string name="history_summary_title">Resumen</string>
-    <string name="history_summary_empty">Sin datos para este periodo</string>
+    <string name="history_date_range_max_caption">Rango máximo 31 días</string>
+    <string name="history_open_date_picker">Elegir fecha</string>
+    <string name="history_summary_distance">Distancia</string>
+    <string name="history_summary_moving_time">Tiempo en movimiento</string>
+    <string name="history_summary_stops">Paradas</string>
+    <string name="history_summary_more_title">Más datos</string>
+    <string name="history_empty_title">Sin viajes este día</string>
+    <string name="history_empty_message">La unidad no registró movimiento el %1$s.</string>
+    <string name="history_empty_action">Elegir otra fecha</string>
+    <string name="history_error_title">No pudimos cargar el historial</string>
+    <string name="history_error_message">El servidor no respondió. Revisa tu conexión e inténtalo otra vez.</string>
+    <string name="history_error_detail">error %1$s · %2$s</string>
 
     <string name="events_title">Alertas</string>
-    <string name="events_search_placeholder">Buscar por unidad o mensaje</string>
-    <string name="events_empty_title">No hay alertas registradas</string>
+    <string name="events_search_placeholder">Buscar por unidad o tipo</string>
+    <string name="events_empty_title">Sin alertas nuevas</string>
+    <string name="events_empty_message">Te avisaremos aquí cuando una unidad supere un umbral o salga de una geocerca.</string>
+    <string name="events_empty_action">Ajustar notificaciones</string>
     <string name="events_empty_search">Sin resultados para esta búsqueda</string>
     <string name="events_unnamed_event">Evento sin nombre</string>
     <string name="events_speed_vs_limit">%1$s — límite %2$s</string>
@@ -107,8 +132,20 @@
     <string name="events_bell_content_description">Alertas</string>
 
     <string name="account_title">Cuenta</string>
+    <string name="nav_tab_map">Mapa</string>
+    <string name="nav_tab_units">Unidades</string>
+    <string name="nav_tab_events">Alertas</string>
+    <string name="nav_tab_account">Cuenta</string>
+    <string name="units_title">Unidades</string>
+    <string name="units_empty_title">Próximamente</string>
+    <string name="units_empty_message">La lista de unidades todavía no está disponible en esta versión.</string>
     <string name="account_back">Volver</string>
-    <string name="account_email_label">Correo</string>
-    <string name="account_server_label">Servidor</string>
+    <string name="account_server_line">Servidor: %1$s</string>
     <string name="account_logout">Cerrar sesión</string>
+    <string name="account_about_title">Acerca de</string>
+    <string name="account_version_format">v %1$s · build %2$d</string>
+    <plurals name="account_units_assigned">
+        <item quantity="one">%d unidad asignada</item>
+        <item quantity="other">%d unidades asignadas</item>
+    </plurals>
 </resources>

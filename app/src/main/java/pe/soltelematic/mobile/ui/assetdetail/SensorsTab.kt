@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -20,12 +22,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.domain.model.AssetSensor
+import pe.soltelematic.mobile.ui.theme.SoltelematicElevation
+import pe.soltelematic.mobile.ui.theme.SoltelematicIconSpec
+import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
+import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 /**
  * Cada sensor tal como llega: sin agrupar por type todavía (el contrato del sprint solo pide
@@ -40,51 +45,68 @@ fun SensorsTab(sensors: List<AssetSensor>, modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            contentPadding = PaddingValues(vertical = SoltelematicSpacing.sm, horizontal = SoltelematicSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs)
         ) {
             items(sensors, key = { it.id }) { sensor ->
                 SensorRow(sensor = sensor, imageLoader = imageLoader)
             }
         }
-        HorizontalDivider()
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Text(
             text = pluralStringResource(R.plurals.asset_detail_sensors_count, sensors.size, sensors.size),
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(SoltelematicSpacing.lg)
         )
     }
 }
 
 @Composable
 private fun SensorRow(sensor: AssetSensor, imageLoader: ImageLoader) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
+    Card(
+        shape = SoltelematicShapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = SoltelematicElevation.e1),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        if (sensor.iconUrl != null) {
-            AsyncImage(
-                model = sensor.iconUrl,
-                imageLoader = imageLoader,
-                contentDescription = null,
-                modifier = Modifier.size(32.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.lg),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(SoltelematicSpacing.sm)
+        ) {
+            if (sensor.iconUrl != null) {
+                AsyncImage(
+                    model = sensor.iconUrl,
+                    imageLoader = imageLoader,
+                    contentDescription = null,
+                    modifier = Modifier.size(SoltelematicIconSpec.large)
+                )
+            } else {
+                // Sin icono propio (no debería pasar según el contrato, pero sensor.icon es nullable
+                // en el DTO): un ícono genérico en vez de dejar el hueco vacío.
+                Icon(
+                    Icons.Filled.Sensors,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(SoltelematicIconSpec.large)
+                )
+            }
+            Text(
+                text = sensor.name ?: sensor.type ?: "-",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
             )
-        } else {
-            // Sin icono propio (no debería pasar según el contrato, pero sensor.icon es nullable
-            // en el DTO): un ícono genérico en vez de dejar el hueco vacío.
-            Icon(Icons.Filled.Sensors, contentDescription = null, modifier = Modifier.size(32.dp))
+            Text(
+                text = sensor.value ?: "-",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
-        Text(
-            text = sensor.name ?: sensor.type ?: "-",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        Text(text = sensor.value ?: "-", style = MaterialTheme.typography.titleMedium)
     }
 }

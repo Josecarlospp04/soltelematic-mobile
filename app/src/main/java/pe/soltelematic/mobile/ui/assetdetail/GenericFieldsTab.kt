@@ -7,13 +7,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.domain.model.AssetDetailField
+import pe.soltelematic.mobile.ui.theme.SoltelematicElevation
+import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
+import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 /**
  * Reutilizada por Servicios (una tarjeta por entrada de la lista) y Conductor (una sola tarjeta
@@ -26,8 +29,8 @@ fun GenericFieldsTab(sections: List<List<AssetDetailField>>, modifier: Modifier 
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(SoltelematicSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.lg)
     ) {
         sections.forEach { fields -> GenericFieldsCard(fields = fields) }
     }
@@ -35,10 +38,15 @@ fun GenericFieldsTab(sections: List<List<AssetDetailField>>, modifier: Modifier 
 
 @Composable
 private fun GenericFieldsCard(fields: List<AssetDetailField>) {
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        shape = SoltelematicShapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = SoltelematicElevation.e1),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(SoltelematicSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.md)
         ) {
             fields.forEach { field -> GenericFieldRow(field) }
         }
@@ -51,10 +59,14 @@ private fun GenericFieldRow(field: AssetDetailField) {
         field.title?.let {
             Text(
                 text = it,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Text(text = field.value ?: "-", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text = field.value ?: "-",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }

@@ -10,16 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -35,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.domain.model.GeoPoint
@@ -42,11 +41,17 @@ import pe.soltelematic.mobile.domain.model.HistoryDriveLeg
 import pe.soltelematic.mobile.domain.model.HistoryLeg
 import pe.soltelematic.mobile.domain.model.HistoryStopLeg
 import pe.soltelematic.mobile.domain.model.UnitStat
+import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
+import pe.soltelematic.mobile.ui.theme.SoltelematicMetricTypography
+import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
+import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
+import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+private val LegDotSize = 10.dp
 
 /**
  * Sin reproducción animada (sin play/pausa, sin contador de puntos): una lista simple en orden
@@ -69,12 +74,12 @@ fun HistoryTimeline(
 ) {
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(vertical = 8.dp, horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        contentPadding = PaddingValues(vertical = SoltelematicSpacing.sm, horizontal = SoltelematicSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)
     ) {
         // Primera fila de la lista, no del mapa: el espacio sale de acá, el mapa no se achica
-        // (confirmado con el usuario). Cerrado por defecto.
-        item { PeriodSummaryHeader(stats = periodStats) }
+        // (confirmado con el usuario).
+        item { RouteSummarySection(legs = legs, periodStats = periodStats) }
 
         itemsIndexed(legs) { index, leg ->
             if (leg is HistoryStopLeg) {
@@ -93,13 +98,78 @@ fun HistoryTimeline(
     }
 }
 
+/**
+ * Distancia/tiempo en movimiento/paradas siempre visibles en 3 tarjetas iguales (ver mockup);
+ * paradas se cuenta acá (no viene en periodStats, es estructural). Cualquier otro stat del
+ * periodo (p. ej. "fuel_consumption_153", dinámico por sensor -- ver HistoryStatDto) sigue en una
+ * sección colapsable aparte, sin asumir campos fijos para esos.
+ */
 @Composable
-private fun PeriodSummaryHeader(stats: List<UnitStat>) {
+private fun RouteSummarySection(legs: List<HistoryLeg>, periodStats: List<UnitStat>) {
+    val distance = periodStats.valueFor("distance")
+    val movingTime = periodStats.valueFor("duration")
+    val stopCount = legs.count { it is HistoryStopLeg }
+    val extraStats = periodStats.filterNot { it.key == "distance" || it.key == "duration" }
+
+    Column(verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            RouteSummaryCard(
+                value = distance ?: "-",
+                label = stringResource(R.string.history_summary_distance),
+                modifier = Modifier.weight(1f)
+            )
+            RouteSummaryCard(
+                value = movingTime ?: "-",
+                label = stringResource(R.string.history_summary_moving_time),
+                modifier = Modifier.weight(1f)
+            )
+            RouteSummaryCard(
+                value = stopCount.toString(),
+                label = stringResource(R.string.history_summary_stops),
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (extraStats.isNotEmpty()) {
+            ExtraStatsSection(stats = extraStats)
+        }
+    }
+}
+
+@Composable
+private fun RouteSummaryCard(value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(
+        shape = SoltelematicShapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = modifier
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = SoltelematicSpacing.md, horizontal = SoltelematicSpacing.sm)
+        ) {
+            Text(text = value, style = SoltelematicMetricTypography.medium, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExtraStatsSection(stats: List<UnitStat>) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val arrowRotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "periodSummaryArrow")
 
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = SoltelematicShapes.medium,
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
@@ -110,10 +180,10 @@ private fun PeriodSummaryHeader(stats: List<UnitStat>) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp)
+                    .padding(SoltelematicSpacing.md)
             ) {
                 Text(
-                    text = stringResource(R.string.history_summary_title),
+                    text = stringResource(R.string.history_summary_more_title),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f)
                 )
@@ -127,30 +197,21 @@ private fun PeriodSummaryHeader(stats: List<UnitStat>) {
                 // stats es dinámico -- claves distintas por sensor de combustible instalado, no
                 // se asumen campos fijos (mismo criterio que HistoryStatDto, ver Bloque 1). Se
                 // pinta title/value tal cual llega el servidor.
-                if (stats.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.history_summary_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                } else {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        stats.forEach { stat ->
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = stat.title ?: stat.key ?: "-",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(text = stat.value ?: "-", style = MaterialTheme.typography.bodyMedium)
-                            }
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = SoltelematicSpacing.md, vertical = SoltelematicSpacing.sm)
+                ) {
+                    stats.forEach { stat ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = stat.title ?: stat.key ?: "-",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(text = stat.value ?: "-", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
@@ -167,50 +228,77 @@ private fun HistoryLegRow(
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = SoltelematicShapes.medium,
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = SoltelematicMinTouchTarget)
             .clickable(onClick = onClick)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.md),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(SoltelematicSpacing.md)
         ) {
-            LegIcon(leg)
+            LegDot(leg)
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = leg.title ?: leg.fallbackTitle(), style = MaterialTheme.typography.titleSmall)
                 Text(
-                    text = "${leg.start.time.toTimeText()} – ${leg.end.time.toTimeText()}",
+                    text = leg.title ?: leg.fallbackTitle(),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+                val subtitle = leg.subtitleText()
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (leg is HistoryStopLeg) {
                     AddressLine(addressResolution)
                 }
             }
-            LegKeyStats(leg)
+            // Hora de inicio del tramo -- orden cronológico de la lista ya se lee por el inicio
+            // de cada fila, no por su fin.
+            Text(
+                text = leg.start.time.toTimeText(),
+                style = SoltelematicMetricTypography.small,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
+/** Punto de color: verde statusMoving para un viaje, ámbar statusIdle para una parada. */
 @Composable
-private fun LegIcon(leg: HistoryLeg) {
-    val (icon, description) = when (leg) {
-        is HistoryStopLeg -> Icons.Filled.Pause to stringResource(R.string.history_leg_stop_fallback_title)
-        is HistoryDriveLeg -> Icons.Filled.DirectionsCar to stringResource(R.string.history_leg_drive_fallback_title)
+private fun LegDot(leg: HistoryLeg) {
+    val color = when (leg) {
+        is HistoryDriveLeg -> LocalSoltelematicColors.current.statusMoving
+        is HistoryStopLeg -> LocalSoltelematicColors.current.statusIdle
     }
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .size(40.dp)
-            .background(MaterialTheme.colorScheme.surface, CircleShape)
-    ) {
-        Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSurface)
+    Box(modifier = Modifier.size(LegDotSize).background(color, CircleShape))
+}
+
+/**
+ * "distancia · duración · velocidad máx" para un viaje, "duración" para una parada. "estado del
+ * motor" del mockup no se agrega para paradas: no hay una key confirmada para eso en
+ * HistoryStatDto (dinámico, ver HistoryRouteMapper.kt) -- no se inventa. speed_max sigue el mismo
+ * criterio best-effort que duration/distance (ya usados así antes de este cambio): si el servidor
+ * no manda la key, el segmento simplemente no aparece.
+ */
+private fun HistoryLeg.subtitleText(): String {
+    val parts = when (this) {
+        is HistoryDriveLeg -> listOfNotNull(
+            stats.valueFor("distance"),
+            stats.valueFor("duration"),
+            stats.valueFor("speed_max")
+        )
+        is HistoryStopLeg -> listOfNotNull(stats.valueFor("duration"))
     }
+    return parts.joinToString(" · ")
 }
 
 // Reutiliza los strings de dirección de la ficha (Sprint 2A): mismo significado ahí y acá.
@@ -232,18 +320,6 @@ private fun AddressLine(resolution: AddressResolution?) {
         fontStyle = if (address != null) FontStyle.Normal else FontStyle.Italic,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
-}
-
-@Composable
-private fun LegKeyStats(leg: HistoryLeg) {
-    val duration = leg.stats.valueFor("duration")
-    val distance = leg.stats.valueFor("distance")
-    Column(horizontalAlignment = Alignment.End) {
-        duration?.let { Text(text = it, style = MaterialTheme.typography.labelLarge) }
-        distance?.let {
-            Text(text = it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
 }
 
 private fun List<UnitStat>.valueFor(key: String): String? = firstOrNull { it.key == key }?.value

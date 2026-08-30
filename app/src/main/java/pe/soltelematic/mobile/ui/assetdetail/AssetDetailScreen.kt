@@ -4,13 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -21,6 +20,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,16 +29,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.domain.model.AssetDetail
-import pe.soltelematic.mobile.domain.model.AssetStatus
-import pe.soltelematic.mobile.domain.model.AssetStatusType
+import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
+import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 /**
  * TopAppBar con volver, carga, error con reintento, contenido con pestañas condicionales (ver
@@ -59,7 +57,12 @@ fun AssetDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(uiState.detail?.name ?: stringResource(R.string.asset_unnamed)) },
+                title = {
+                    Text(
+                        text = uiState.detail?.name ?: stringResource(R.string.asset_unnamed),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -67,7 +70,25 @@ fun AssetDetailScreen(
                             contentDescription = stringResource(R.string.asset_detail_back)
                         )
                     }
-                }
+                },
+                actions = {
+                    // Sin función de favorito en el ViewModel/repositorio todavía (no existe en
+                    // ningún lado del código): ícono decorativo e inerte a propósito, no se
+                    // inventa la funcionalidad en esta tarea de solo-estilo.
+                    IconButton(onClick = {}) {
+                        Icon(
+                            Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
         },
         bottomBar = {
@@ -95,12 +116,23 @@ fun AssetDetailScreen(
 private fun AssetDetailErrorState(error: ApiError, onRetry: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.padding(24.dp)
+        verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.lg),
+        modifier = Modifier.padding(SoltelematicSpacing.xl)
     ) {
-        Text(text = errorMessage(error), style = MaterialTheme.typography.bodyLarge)
-        Button(onClick = onRetry) {
-            Text(stringResource(R.string.asset_detail_retry))
+        Text(
+            text = errorMessage(error),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Button(
+            onClick = onRetry,
+            shape = pe.soltelematic.mobile.ui.theme.SoltelematicShapes.small,
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text(stringResource(R.string.asset_detail_retry), style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -129,16 +161,24 @@ private fun AssetDetailContent(detail: AssetDetail, uiState: AssetDetailUiState)
     if (selectedTab !in visibleTabs) selectedTab = AssetDetailTab.SUMMARY
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            AssetDetailStatusChip(detail)
-        }
+        // El badge de estado ya no vive suelto acá: se movió dentro del bloque de
+        // velocidad/estado de SummaryTab (ver mockup), donde tiene más sentido -- las otras
+        // pestañas (Sensores/Servicios/Conductor) no lo necesitan repetido arriba.
         if (visibleTabs.size > 1) {
-            TabRow(selectedTabIndex = visibleTabs.indexOf(selectedTab)) {
+            TabRow(
+                selectedTabIndex = visibleTabs.indexOf(selectedTab),
+                containerColor = MaterialTheme.colorScheme.surface,
+                // El indicador por defecto de TabRow ya se pinta con contentColor -- no hace
+                // falta un indicator custom con tabIndicatorOffset para que quede en primary.
+                contentColor = MaterialTheme.colorScheme.primary
+            ) {
                 visibleTabs.forEach { tab ->
                     Tab(
                         selected = tab == selectedTab,
                         onClick = { selectedTab = tab },
-                        text = { Text(stringResource(tab.labelRes)) }
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = { Text(stringResource(tab.labelRes), style = MaterialTheme.typography.labelLarge) }
                     )
                 }
             }
@@ -163,41 +203,6 @@ private fun AssetDetailContent(detail: AssetDetail, uiState: AssetDetailUiState)
 }
 
 @Composable
-private fun AssetDetailStatusChip(detail: AssetDetail) {
-    // Color viene del servidor y se muestra tal cual, igual que en AssetBottomSheet. El texto ya
-    // no -- ver AssetStatus.label().
-    val color = detail.status.colorHex.toComposeColorOrDefault()
-    AssistChip(
-        onClick = {},
-        enabled = false,
-        label = { Text(detail.status.label()) },
-        colors = AssistChipDefaults.assistChipColors(
-            disabledContainerColor = color.copy(alpha = 0.15f),
-            disabledLabelColor = color
-        )
-    )
-}
-
-/**
- * Etiqueta propia por status.type en vez del status.title crudo del servidor (jerga de
- * protocolo, p. ej. "ACK"). Si el tipo no es ninguno de los cinco conocidos, cae de vuelta al
- * title del servidor -- mostrar la jerga de un estado nuevo que la plataforma agregue mañana es
- * más útil que "Desconocido" a secas -- y solo si ni eso hay, a asset_status_unknown.
- *
- * Duplicada en AssetBottomSheet.kt (mismo criterio que toComposeColorOrDefault más abajo): seis
- * líneas de mapeo no justifican compartir una función entre las dos pantallas.
- */
-@Composable
-private fun AssetStatus.label(): String = when (type) {
-    AssetStatusType.ACK -> stringResource(R.string.asset_status_ack)
-    AssetStatusType.OFFLINE -> stringResource(R.string.asset_status_offline)
-    AssetStatusType.ONLINE -> stringResource(R.string.asset_status_online)
-    AssetStatusType.ENGINE -> stringResource(R.string.asset_status_engine)
-    AssetStatusType.BLOCKED -> stringResource(R.string.asset_status_blocked)
-    AssetStatusType.UNKNOWN -> title ?: stringResource(R.string.asset_status_unknown)
-}
-
-@Composable
 private fun errorMessage(error: ApiError): String = when (error) {
     ApiError.NoConnection -> stringResource(R.string.asset_detail_error_no_connection)
     ApiError.Timeout -> stringResource(R.string.asset_detail_error_timeout)
@@ -206,9 +211,3 @@ private fun errorMessage(error: ApiError): String = when (error) {
     is ApiError.Http,
     is ApiError.Unknown -> stringResource(R.string.asset_detail_error_generic)
 }
-
-// Duplicado deliberado del helper homónimo privado en AssetBottomSheet.kt -- mismo criterio que
-// la duplicación de toAssetStatusType en los mappers: tres líneas no ameritan un archivo util
-// compartido entre dos pantallas.
-private fun String?.toComposeColorOrDefault(): Color =
-    runCatching { Color(android.graphics.Color.parseColor(this)) }.getOrDefault(Color.Gray)

@@ -1,14 +1,21 @@
 package pe.soltelematic.mobile.ui.history
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -18,13 +25,19 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -34,14 +47,28 @@ import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.HistoryRoute
 import pe.soltelematic.mobile.ui.map.engine.RouteMapEngine
+import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
+import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
+import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
+import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val HEADER_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.forLanguageTag("es-PE"))
+private val ERROR_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+private val EmptyStateIconSize = 40.dp
+private val CalendarButtonBorderWidth = 1.dp
 
 /**
- * TopAppBar con volver, carga cancelable, error con reintento, vacío si el día no tuvo actividad,
- * y contenido con mapa (arriba) + línea de tiempo (abajo) -- ver HistoryContent.
+ * TopAppBar con volver, subtítulo de rango + botón de calendario, carga cancelable, error con
+ * reintento, vacío si el día no tuvo actividad, y contenido con mapa (arriba) + línea de tiempo
+ * (abajo) -- ver HistoryContent.
  *
- * Sin selector de fecha todavía: siempre es el día de hoy (ver HistoryViewModel). El botón
- * "Historial" que navega acá vive en dos lugares -- AssetBottomSheet y DetailActionsFooter -- y
- * ambos llegan al mismo destino con el mismo assetId.
+ * El botón de calendario del header y la pill "Personalizado" de HistoryDateRangeBar abren el
+ * mismo HistoryDateRangePickerDialog -- por eso showDatePicker vive acá, no dentro de la barra de
+ * pills, un solo diálogo con dos disparadores.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,12 +79,22 @@ fun HistoryScreen(
     routeMapEngine: RouteMapEngine = koinInject()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.history_title)) },
+                    title = {
+                        Column {
+                            Text(stringResource(R.string.history_title), style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                text = uiState.dateRange.toDisplayText(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
@@ -65,18 +102,35 @@ fun HistoryScreen(
                                 contentDescription = stringResource(R.string.asset_detail_back)
                             )
                         }
-                    }
+                    },
+                    actions = {
+                        HistoryCalendarButton(onClick = { showDatePicker = true })
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
-                // Vive en el topBar, no en el contenido: cambiar de rango no debe achicar el mapa
-                // ni la lista, igual que el resumen del periodo (ver PeriodSummaryHeader).
                 HistoryDateRangeBar(
                     dateRange = uiState.dateRange,
                     onPresetSelected = viewModel::onDateRangeSelected,
-                    onCustomRangeSelected = viewModel::onCustomDateRangeSelected
+                    onOpenCustomPicker = { showDatePicker = true }
                 )
             }
         }
     ) { innerPadding ->
+        if (showDatePicker) {
+            HistoryDateRangePickerDialog(
+                initialRange = uiState.dateRange,
+                onDismiss = { showDatePicker = false },
+                onConfirm = { from, to ->
+                    showDatePicker = false
+                    viewModel.onCustomDateRangeSelected(from, to)
+                }
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -93,10 +147,9 @@ fun HistoryScreen(
                     }
                 )
                 error != null -> HistoryErrorState(error = error, onRetry = viewModel::onRetry)
-                route != null && route.legs.isEmpty() -> Text(
-                    text = stringResource(R.string.history_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(24.dp)
+                route != null && route.legs.isEmpty() -> HistoryEmptyState(
+                    dateText = uiState.dateRange.toDisplayText(),
+                    onPickAnotherDate = { showDatePicker = true }
                 )
                 route != null -> HistoryContent(
                     route = route,
@@ -113,30 +166,122 @@ fun HistoryScreen(
 }
 
 @Composable
+private fun HistoryCalendarButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .padding(end = SoltelematicSpacing.sm)
+            .size(SoltelematicMinTouchTarget)
+            .border(CalendarButtonBorderWidth, MaterialTheme.colorScheme.outlineVariant, SoltelematicShapes.small)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            Icons.Filled.CalendarMonth,
+            contentDescription = stringResource(R.string.history_open_date_picker),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 private fun HistoryLoadingState(onCancel: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.lg)
     ) {
-        CircularProgressIndicator()
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         // Una consulta de varios días puede tardar -- siempre hay una salida, no solo esperar a
         // que termine o falle. cancelLoad() corta la corrutina en vuelo, no la deja de fondo.
-        OutlinedButton(onClick = onCancel) {
-            Text(stringResource(R.string.history_cancel))
+        OutlinedButton(onClick = onCancel, shape = SoltelematicShapes.small) {
+            Text(stringResource(R.string.history_cancel), style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+/**
+ * Anatomía única de estado vacío/error de la pantalla (ver mockup): ícono monocromo 40dp, título
+ * corto, una línea de explicación, máximo una acción.
+ */
+@Composable
+private fun HistoryEmptyState(dateText: String, onPickAnotherDate: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
+        modifier = Modifier.padding(SoltelematicSpacing.xl)
+    ) {
+        Icon(
+            Icons.Filled.EventBusy,
+            contentDescription = null,
+            tint = LocalSoltelematicColors.current.inkFaint,
+            modifier = Modifier.size(EmptyStateIconSize)
+        )
+        Text(
+            text = stringResource(R.string.history_empty_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = stringResource(R.string.history_empty_message, dateText),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Button(
+            onClick = onPickAnotherDate,
+            shape = SoltelematicShapes.small,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ),
+            modifier = Modifier.padding(top = SoltelematicSpacing.sm)
+        ) {
+            Text(stringResource(R.string.history_empty_action), style = MaterialTheme.typography.labelLarge)
         }
     }
 }
 
 @Composable
 private fun HistoryErrorState(error: ApiError, onRetry: () -> Unit) {
+    // Compuesto una sola vez por instancia de error (no en cada recomposición): suficiente para
+    // mostrar "a qué hora falló" sin tener que sumar un campo de timestamp al ViewModel.
+    val failedAt = remember(error) { Instant.now() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.padding(24.dp)
+        verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
+        modifier = Modifier.padding(SoltelematicSpacing.xl)
     ) {
-        Text(text = errorMessage(error), style = MaterialTheme.typography.bodyLarge)
-        Button(onClick = onRetry) {
-            Text(stringResource(R.string.asset_detail_retry))
+        Icon(
+            Icons.Filled.ErrorOutline,
+            contentDescription = null,
+            tint = LocalSoltelematicColors.current.statusAlert,
+            modifier = Modifier.size(EmptyStateIconSize)
+        )
+        Text(
+            text = stringResource(R.string.history_error_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = stringResource(R.string.history_error_message),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = stringResource(R.string.history_error_detail, error.toErrorCode(), ERROR_TIME_FORMAT.format(failedAt)),
+            style = MaterialTheme.typography.labelSmall,
+            color = LocalSoltelematicColors.current.inkFaint
+        )
+        Button(
+            onClick = onRetry,
+            shape = SoltelematicShapes.small,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ),
+            modifier = Modifier.padding(top = SoltelematicSpacing.sm)
+        ) {
+            Text(stringResource(R.string.asset_detail_retry), style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -200,15 +345,20 @@ private fun HistoryContent(
     }
 }
 
+private fun HistoryDateRange.toDisplayText(): String = if (from == to) {
+    HEADER_DATE_FORMAT.format(from)
+} else {
+    "${HEADER_DATE_FORMAT.format(from)} – ${HEADER_DATE_FORMAT.format(to)}"
+}
+
 // Mismos mensajes genéricos que AssetDetailScreen.errorMessage -- duplicado deliberado, igual
 // criterio que el resto de la app (ver AssetDetailScreen.kt): tres líneas no ameritan compartir
 // un archivo util entre dos pantallas.
-@Composable
-private fun errorMessage(error: ApiError): String = when (error) {
-    ApiError.NoConnection -> stringResource(R.string.asset_detail_error_no_connection)
-    ApiError.Timeout -> stringResource(R.string.asset_detail_error_timeout)
-    ApiError.Unauthorized,
-    is ApiError.ValidationError,
-    is ApiError.Http,
-    is ApiError.Unknown -> stringResource(R.string.asset_detail_error_generic)
+private fun ApiError.toErrorCode(): String = when (this) {
+    ApiError.NoConnection -> "sin_conexion"
+    ApiError.Timeout -> "timeout"
+    ApiError.Unauthorized -> "401"
+    is ApiError.ValidationError -> "validacion"
+    is ApiError.Http -> code.toString()
+    is ApiError.Unknown -> "desconocido"
 }

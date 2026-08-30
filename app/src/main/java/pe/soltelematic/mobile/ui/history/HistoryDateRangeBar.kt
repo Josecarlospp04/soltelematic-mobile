@@ -2,6 +2,7 @@ package pe.soltelematic.mobile.ui.history
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,77 +11,103 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
+import pe.soltelematic.mobile.ui.theme.SoltelematicPillShape
+import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
 /**
- * Hoy/Ayer/7 días resuelven el rango solos; "Elegir" abre DateRangePicker (Bloque de fechas,
- * corrección post-2B). El tope de 31 días no se impone en el picker (dejaría fechas
- * deshabilitadas de forma confusa según cuál se toque primero) -- se clampea al confirmar, en
- * HistoryDateRange.custom().
+ * Hoy/Ayer/7 días resuelven el rango solos; "Personalizado" abre DateRangePicker (Bloque de
+ * fechas, corrección post-2B) -- el trigger vive afuera (HistoryScreen), porque el botón de
+ * calendario del header abre el mismo diálogo. El tope de 31 días no se impone en el picker
+ * (dejaría fechas deshabilitadas de forma confusa según cuál se toque primero) -- se clampea al
+ * confirmar, en HistoryDateRange.custom().
  */
 @Composable
 fun HistoryDateRangeBar(
     dateRange: HistoryDateRange,
     onPresetSelected: (HistoryDateRange) -> Unit,
-    onCustomRangeSelected: (LocalDate, LocalDate) -> Unit,
+    onOpenCustomPicker: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showPicker by rememberSaveable { mutableStateOf(false) }
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        FilterChip(
-            selected = dateRange.preset == HistoryDateRange.Preset.TODAY,
-            onClick = { onPresetSelected(HistoryDateRange.today()) },
-            label = { Text(stringResource(R.string.history_date_today)) }
-        )
-        FilterChip(
-            selected = dateRange.preset == HistoryDateRange.Preset.YESTERDAY,
-            onClick = { onPresetSelected(HistoryDateRange.yesterday()) },
-            label = { Text(stringResource(R.string.history_date_yesterday)) }
-        )
-        FilterChip(
-            selected = dateRange.preset == HistoryDateRange.Preset.LAST_7_DAYS,
-            onClick = { onPresetSelected(HistoryDateRange.last7Days()) },
-            label = { Text(stringResource(R.string.history_date_last_7_days)) }
-        )
-        FilterChip(
-            selected = dateRange.preset == HistoryDateRange.Preset.CUSTOM,
-            onClick = { showPicker = true },
-            label = { Text(stringResource(R.string.history_date_custom)) }
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = SoltelematicSpacing.lg, vertical = SoltelematicSpacing.sm)
+        ) {
+            HistoryDatePill(
+                selected = dateRange.preset == HistoryDateRange.Preset.TODAY,
+                label = stringResource(R.string.history_date_today),
+                onClick = { onPresetSelected(HistoryDateRange.today()) }
+            )
+            HistoryDatePill(
+                selected = dateRange.preset == HistoryDateRange.Preset.YESTERDAY,
+                label = stringResource(R.string.history_date_yesterday),
+                onClick = { onPresetSelected(HistoryDateRange.yesterday()) }
+            )
+            HistoryDatePill(
+                selected = dateRange.preset == HistoryDateRange.Preset.LAST_7_DAYS,
+                label = stringResource(R.string.history_date_last_7_days),
+                onClick = { onPresetSelected(HistoryDateRange.last7Days()) }
+            )
+            HistoryDatePill(
+                selected = dateRange.preset == HistoryDateRange.Preset.CUSTOM,
+                label = stringResource(R.string.history_date_custom),
+                onClick = onOpenCustomPicker
+            )
+        }
+        Text(
+            text = stringResource(R.string.history_date_range_max_caption).uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = LocalSoltelematicColors.current.inkFaint,
+            textAlign = TextAlign.Start,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SoltelematicSpacing.lg)
+                .padding(bottom = SoltelematicSpacing.sm)
         )
     }
+}
 
-    if (showPicker) {
-        HistoryDateRangePickerDialog(
-            initialRange = dateRange,
-            onDismiss = { showPicker = false },
-            onConfirm = { from, to ->
-                showPicker = false
-                onCustomRangeSelected(from, to)
-            }
+// Mismo tratamiento que FilterChipsRow en MapScreen.kt: seleccionado = fondo ink/texto invertido,
+// no seleccionado = surface + borde outline. Un solo componente acá porque HistoryDateRangeBar es
+// el único lugar de Historial con esta fila de pills.
+@Composable
+private fun HistoryDatePill(selected: Boolean, label: String, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+        shape = SoltelematicPillShape,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+            selectedLabelColor = MaterialTheme.colorScheme.surface
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = MaterialTheme.colorScheme.outline,
+            selectedBorderColor = MaterialTheme.colorScheme.onSurface
         )
-    }
+    )
 }
 
 // Los millis de DateRangePickerState son medianoche UTC del día calendario, no la zona del
@@ -89,7 +116,7 @@ fun HistoryDateRangeBar(
 // inicial, vuelta al confirmar).
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HistoryDateRangePickerDialog(
+fun HistoryDateRangePickerDialog(
     initialRange: HistoryDateRange,
     onDismiss: () -> Unit,
     onConfirm: (LocalDate, LocalDate) -> Unit

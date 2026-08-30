@@ -43,7 +43,9 @@ class AccountViewModel(
                 is ApiResult.Success -> _uiState.update { it.copy(serverName = configResult.data.serverName) }
                 is ApiResult.Error -> Unit
             }
-            _uiState.update { it.copy(isLoading = false) }
+            // Ya cacheado en Room -- observeAssets() es el espejo local, no dispara red nueva.
+            val unitCount = assetRepository.observeAssets().first().size
+            _uiState.update { it.copy(unitCount = unitCount, isLoading = false) }
         }
     }
 
