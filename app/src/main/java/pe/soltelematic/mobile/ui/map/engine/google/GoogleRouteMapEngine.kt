@@ -1,10 +1,18 @@
 package pe.soltelematic.mobile.ui.map.engine.google
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
+import android.graphics.Paint
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
+import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.PolyUtil
@@ -14,6 +22,7 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
+import kotlin.math.roundToInt
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.RouteMapEngine
@@ -21,6 +30,7 @@ import pe.soltelematic.mobile.ui.map.engine.RouteMarkerData
 import pe.soltelematic.mobile.ui.map.engine.RouteMarkerRole
 import pe.soltelematic.mobile.ui.map.engine.RoutePoint
 import pe.soltelematic.mobile.ui.map.engine.RoutePolyline
+import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
 
 private const val POLYLINE_WIDTH_PX = 10f
 private const val SELECTED_POLYLINE_WIDTH_PX = 16f
@@ -43,14 +53,17 @@ private const val BASE_SIMPLIFY_TOLERANCE_METERS = 3.0
 private const val ESCALATED_SIMPLIFY_TOLERANCE_METERS = 25.0
 private const val MAX_TOTAL_POLYLINE_POINTS = 6_000
 
-// Mismo verde que LastSeenFreshness.RECENT en AssetBottomSheet.kt: un solo "verde de la app", no
-// dos tonos distintos para dos usos de "esto es lo que importa ahora mismo".
-private val SELECTED_POLYLINE_COLOR = Color(0xFF2E7D32)
-
-private const val HUE_ROUTE_START = BitmapDescriptorFactory.HUE_GREEN
-private const val HUE_ROUTE_END = BitmapDescriptorFactory.HUE_RED
-private const val HUE_STOP = BitmapDescriptorFactory.HUE_ORANGE
-private const val HUE_SELECTED = BitmapDescriptorFactory.HUE_YELLOW
+// Tamaños de los pines circulares propios (retematizado, ver tarea de Historial): reemplazan los
+// pines de stock de Google (BitmapDescriptorFactory.defaultMarker por hue), que no admiten los
+// tokens de color de la marca. MARKER_SELECTED_DIAMETER_DP > MARKER_DIAMETER_DP porque el
+// resaltado de selección es un anillo dibujado en el mismo bitmap (un solo Marker por dato, igual
+// que antes), no una capa superpuesta.
+private const val MARKER_DIAMETER_DP = 18
+private const val MARKER_SELECTED_DIAMETER_DP = 26
+private const val MARKER_STROKE_WIDTH_DP = 2f
+private const val MARKER_INNER_DOT_DIAMETER_DP = 6f
+private const val MARKER_SELECTION_RING_WIDTH_DP = 2f
+private const val MARKER_SELECTION_RING_GAP_DP = 2f
 
 /**
  * Sin ClusterManager ni MarkerIconCache a propósito: a diferencia de GoogleMapEngine (200+
@@ -59,9 +72,10 @@ private const val HUE_SELECTED = BitmapDescriptorFactory.HUE_YELLOW
  * maps-compose alcanzan sin el costo de mantenerlos -- no hay el problema de rendimiento que
  * motivó el enfoque imperativo del Bloque 7.
  *
- * Pines por hue (BitmapDescriptorFactory.defaultMarker), no bitmaps propios: a diferencia de los
- * marcadores de unidad (con icono real por modelo de equipo), acá no hay un asset visual que
- * resolver, así que un pin de color ya cumple "distinguible claramente" sin generar bitmaps.
+ * Pines circulares propios vía Canvas (ver buildRouteMarkerBitmap), no bitmaps por URL: a
+ * diferencia de los marcadores de unidad (con icono real por modelo de equipo), acá no hay un
+ * asset visual que resolver, solo 6 combinaciones fijas de color -- suficiente para dibujarlas
+ * directo sin pasar por MarkerIconCache ni por carga de imagen.
  */
 class GoogleRouteMapEngine : RouteMapEngine {
 
@@ -85,6 +99,25 @@ class GoogleRouteMapEngine : RouteMapEngine {
         // que devuelve rememberCameraController() de esta misma clase.
         val googleController = cameraController as GoogleMapCameraController
 
+        val density = LocalDensity.current.density
+        val statusMovingArgb = LocalSoltelematicColors.current.statusMoving.toArgb()
+        val onSurfaceArgb = MaterialTheme.colorScheme.onSurface.toArgb()
+        val surfaceArgb = MaterialTheme.colorScheme.surface.toArgb()
+        val outlineArgb = MaterialTheme.colorScheme.outline.toArgb()
+        val primaryArgb = MaterialTheme.colorScheme.primary.toArgb()
+        val markerIcons = remember(density, statusMovingArgb, onSurfaceArgb, surfaceArgb, outlineArgb, primaryArgb) {
+            buildRouteMarkerIcons(
+                density = density,
+                palette = RouteMarkerPalette(
+                    statusMoving = statusMovingArgb,
+                    onSurface = onSurfaceArgb,
+                    surface = surfaceArgb,
+                    outline = outlineArgb,
+                    primary = primaryArgb
+                )
+            )
+        }
+
         GoogleMap(
             modifier = modifier,
             cameraPositionState = googleController.cameraPositionState,
@@ -96,7 +129,7 @@ class GoogleRouteMapEngine : RouteMapEngine {
             polylines.firstOrNull { it.legIndex == selectedLegIndex }?.let { selected ->
                 Polyline(
                     points = selected.points.map { it.point.toLatLng() },
-                    color = SELECTED_POLYLINE_COLOR,
+                    color = MaterialTheme.colorScheme.primary,
                     width = SELECTED_POLYLINE_WIDTH_PX,
                     zIndex = 1f,
                     clickable = false
@@ -120,9 +153,7 @@ class GoogleRouteMapEngine : RouteMapEngine {
                 val isSelected = marker.legIndex == selectedLegIndex
                 Marker(
                     state = rememberMarkerState(position = marker.position.toLatLng()),
-                    icon = BitmapDescriptorFactory.defaultMarker(
-                        if (isSelected) HUE_SELECTED else marker.role.toHue()
-                    ),
+                    icon = markerIcons.getValue(marker.role to isSelected),
                     zIndex = if (isSelected) 1f else 0f,
                     // Contrato del engine: nunca popup. onClick consumido (true) evita que el
                     // SDK abra el InfoWindow por defecto.
@@ -136,10 +167,114 @@ class GoogleRouteMapEngine : RouteMapEngine {
     }
 }
 
-private fun RouteMarkerRole.toHue(): Float = when (this) {
-    RouteMarkerRole.ROUTE_START -> HUE_ROUTE_START
-    RouteMarkerRole.ROUTE_END -> HUE_ROUTE_END
-    RouteMarkerRole.STOP -> HUE_STOP
+/** Colores de marca ya resueltos a Int (android.graphics.Color) -- ver buildRouteMarkerBitmap. */
+private data class RouteMarkerPalette(
+    val statusMoving: Int,
+    val onSurface: Int,
+    val surface: Int,
+    val outline: Int,
+    val primary: Int
+)
+
+/**
+ * Un bitmap por combinación (role, seleccionado) -- 6 en total, generados una vez por composición
+ * de Content() y cacheados vía remember() sobre los colores resueltos. Mismo criterio que
+ * MarkerIconCache (Bloque 7 del mapa en vivo): un bitmap propio por Canvas en vez de pines de
+ * stock, para que el marcador respete los tokens de marca en vez del catálogo fijo de hues de
+ * Google. No hace falta un cache más elaborado (por URL, LRU, etc.): son 6 bitmaps chicos, no
+ * cientos de unidades.
+ */
+private fun buildRouteMarkerIcons(
+    density: Float,
+    palette: RouteMarkerPalette
+): Map<Pair<RouteMarkerRole, Boolean>, BitmapDescriptor> {
+    fun iconFor(role: RouteMarkerRole, selected: Boolean): BitmapDescriptor = when (role) {
+        // Inicio: círculo relleno statusMoving -- mismo verde que "unidad en movimiento" en el
+        // resto de la app (ver StatusPill en SummaryTab.kt).
+        RouteMarkerRole.ROUTE_START -> buildRouteMarkerBitmap(
+            density = density,
+            selected = selected,
+            fillColor = palette.statusMoving,
+            strokeColor = null,
+            innerDotColor = null,
+            selectionRingColor = palette.primary
+        )
+        // Fin: círculo relleno ink -- neutro a propósito, para no competir con el verde de inicio
+        // ni con el ámbar/rojo de otros estados de la unidad.
+        RouteMarkerRole.ROUTE_END -> buildRouteMarkerBitmap(
+            density = density,
+            selected = selected,
+            fillColor = palette.onSurface,
+            strokeColor = null,
+            innerDotColor = null,
+            selectionRingColor = palette.primary
+        )
+        // Parada: círculo surface con borde outline y punto interior ink -- distinto de
+        // inicio/fin porque una parada no es un extremo de la ruta.
+        RouteMarkerRole.STOP -> buildRouteMarkerBitmap(
+            density = density,
+            selected = selected,
+            fillColor = palette.surface,
+            strokeColor = palette.outline,
+            innerDotColor = palette.onSurface,
+            selectionRingColor = palette.primary
+        )
+    }
+    return RouteMarkerRole.values().flatMap { role ->
+        listOf((role to false) to iconFor(role, false), (role to true) to iconFor(role, true))
+    }.toMap()
+}
+
+/**
+ * Dibuja un pin circular a mano (Canvas), reemplazando BitmapDescriptorFactory.defaultMarker: el
+ * pin de stock solo admite un hue de una paleta fija de Google, no un color de marca. selected
+ * agranda el bitmap y agrega un anillo en selectionRingColor alrededor del mismo círculo -- un
+ * solo Marker por dato (igual que antes de este cambio), no dos capas superpuestas.
+ */
+private fun buildRouteMarkerBitmap(
+    density: Float,
+    selected: Boolean,
+    fillColor: Int,
+    strokeColor: Int?,
+    innerDotColor: Int?,
+    selectionRingColor: Int
+): BitmapDescriptor {
+    val diameterDp = if (selected) MARKER_SELECTED_DIAMETER_DP else MARKER_DIAMETER_DP
+    val sizePx = (diameterDp * density).roundToInt()
+    val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val center = sizePx / 2f
+    val ringWidthPx = MARKER_SELECTION_RING_WIDTH_DP * density
+    val ringGapPx = MARKER_SELECTION_RING_GAP_DP * density
+    val bodyRadius = if (selected) center - ringWidthPx - ringGapPx else center
+
+    if (selected) {
+        canvas.drawCircle(center, center, center - ringWidthPx / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = selectionRingColor
+            style = Paint.Style.STROKE
+            strokeWidth = ringWidthPx
+            isAntiAlias = true
+        })
+    }
+    canvas.drawCircle(center, center, bodyRadius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = fillColor
+        style = Paint.Style.FILL
+    })
+    if (strokeColor != null) {
+        val strokeWidthPx = MARKER_STROKE_WIDTH_DP * density
+        canvas.drawCircle(center, center, bodyRadius - strokeWidthPx / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = strokeColor
+            style = Paint.Style.STROKE
+            strokeWidth = strokeWidthPx
+        })
+    }
+    if (innerDotColor != null) {
+        canvas.drawCircle(center, center, MARKER_INNER_DOT_DIAMETER_DP * density / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = innerDotColor
+            style = Paint.Style.FILL
+        })
+    }
+    return BitmapDescriptorFactory.fromBitmap(bitmap)
 }
 
 /**

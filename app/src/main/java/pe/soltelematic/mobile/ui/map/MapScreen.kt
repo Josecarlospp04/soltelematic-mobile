@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,28 +20,31 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LayersClear
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ZoomOutMap
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,11 +57,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.content.ContextCompat
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -68,10 +75,15 @@ import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.MapEngine
 import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
+import pe.soltelematic.mobile.ui.theme.BrandLogo
+import pe.soltelematic.mobile.ui.theme.SoltelematicElevation
+import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
+import pe.soltelematic.mobile.ui.theme.SoltelematicPillShape
+import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
+import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 @Composable
 fun MapScreen(
-    onOpenAccount: () -> Unit,
     onOpenAssetDetail: (Int) -> Unit,
     onOpenHistory: (Int) -> Unit,
     onOpenEvents: () -> Unit,
@@ -125,6 +137,13 @@ fun MapScreen(
         if (uiState.hasBlockedAssets) AssetFilter.entries.toList() else AssetFilter.entries - AssetFilter.BLOCKED
     }
 
+    // Puramente de presentación (cuántas unidades caen en cada chip): reutiliza
+    // AssetFilter.matches, ya usado por MapUiState.visibleAssets, así que el criterio de cada
+    // chip sigue siendo el único definido ahí -- esto solo formatea el número visible.
+    val filterCounts = remember(uiState.assets) {
+        AssetFilter.entries.associateWith { filter -> uiState.assets.count(filter::matches) }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         mapEngine.Content(
             modifier = Modifier.fillMaxSize(),
@@ -150,19 +169,23 @@ fun MapScreen(
                 .onSizeChanged { size -> topOverlayHeightPx = size.height }
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                .padding(16.dp)
+                .padding(SoltelematicSpacing.lg)
         ) {
+            // Una sola pieza (ver mockup): antes la campana y el avatar de cuenta flotaban aparte.
+            // El avatar se fue del todo (ahora vive en el bottom nav, ver SoltelematicNavHost) --
+            // la campana se queda, ahora dentro del mismo Surface que el buscador.
             MapSearchBar(
                 query = uiState.searchQuery,
                 onQueryChange = viewModel::onSearchQueryChange,
-                onOpenAccount = onOpenAccount,
                 onOpenEvents = onOpenEvents,
-                unseenEventsCount = uiState.unseenEventsCount
+                showUnreadDot = uiState.unseenEventsCount > 0,
+                modifier = Modifier.fillMaxWidth()
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(SoltelematicSpacing.sm))
             FilterChipsRow(
                 filters = visibleFilters,
                 activeFilter = uiState.activeFilter,
+                counts = filterCounts,
                 onFilterSelected = viewModel::onFilterSelected
             )
         }
@@ -172,36 +195,42 @@ fun MapScreen(
                 .align(Alignment.BottomEnd)
                 .onSizeChanged { size -> fabColumnWidthPx = size.width }
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                .padding(16.dp)
+                .padding(SoltelematicSpacing.lg)
         ) {
-            FloatingActionButton(onClick = { cameraController.fitAll(markers.map { it.position }) }) {
-                Icon(Icons.Filled.ZoomOutMap, contentDescription = stringResource(R.string.map_fit_all))
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            FloatingActionButton(
+            MapFab(
+                onClick = { cameraController.fitAll(markers.map { it.position }) },
+                icon = Icons.Filled.ZoomOutMap,
+                contentDescription = stringResource(R.string.map_fit_all)
+            )
+            Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
+            MapFab(
                 onClick = {
                     if (hasLocationPermission) {
                         centerOnMyLocation(context, cameraController)
                     } else {
                         locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     }
-                }
-            ) {
-                Icon(Icons.Filled.MyLocation, contentDescription = stringResource(R.string.map_center_my_location))
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            FloatingActionButton(onClick = viewModel::onToggleGeofencesVisibility) {
-                Icon(
-                    if (uiState.showGeofences) Icons.Filled.Layers else Icons.Filled.LayersClear,
-                    contentDescription = stringResource(R.string.map_toggle_geofences)
-                )
-            }
+                },
+                icon = Icons.Filled.MyLocation,
+                contentDescription = stringResource(R.string.map_center_my_location)
+            )
+            Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
+            MapFab(
+                onClick = viewModel::onToggleGeofencesVisibility,
+                icon = if (uiState.showGeofences) Icons.Filled.Layers else Icons.Filled.LayersClear,
+                contentDescription = stringResource(R.string.map_toggle_geofences),
+                active = uiState.showGeofences
+            )
         }
     }
 
     uiState.selectedAsset?.let { asset ->
         AssetBottomSheet(
             asset = asset,
+            stats = uiState.selectedAssetStats,
+            isStatsLoading = uiState.isSelectedAssetStatsLoading,
+            address = uiState.selectedAssetAddress,
+            isAddressLoading = uiState.isSelectedAssetAddressLoading,
             onDismiss = viewModel::onBottomSheetDismissed,
             onOpenDetail = { onOpenAssetDetail(asset.id) },
             onOpenHistory = { onOpenHistory(asset.id) }
@@ -209,58 +238,98 @@ fun MapScreen(
     }
 }
 
+/**
+ * Una sola pieza (ver mockup, Bloque de rediseño): estrella de marca a la izquierda, placeholder
+ * en el medio (una sola línea, ver maxLines abajo -- antes se partía en dos), campana + punto rojo
+ * de no vistos a la derecha, todo dentro del mismo Surface. El avatar de cuenta que vivía acá se
+ * fue por completo al bottom nav (ver SoltelematicNavHost).
+ */
 @Composable
 private fun MapSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    onOpenAccount: () -> Unit,
     onOpenEvents: () -> Unit,
-    unseenEventsCount: Int
+    showUnreadDot: Boolean,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(28.dp),
-        tonalElevation = 3.dp,
-        shadowElevation = 4.dp,
-        modifier = Modifier.fillMaxWidth()
+        shape = SoltelematicShapes.small,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = SoltelematicElevation.e2,
+        modifier = modifier
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = { Text(stringResource(R.string.map_search_placeholder)) },
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = {
+                Text(
+                    stringResource(R.string.map_search_placeholder),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            singleLine = true,
+            // Ícono de marca en vez de una lupa genérica (ver mockup): BrandLogo ya existe en
+            // Theme.kt con brand = null para el acento/nombre por defecto de SOLTELEMATIC.
+            leadingIcon = { BrandLogo(brand = null) },
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { onQueryChange("") }) {
                             Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_search_clear))
                         }
                     }
-                },
-                modifier = Modifier.weight(1f)
-            )
-            // Campana de la bandeja de alertas (Sprint 3A), entre el buscador y la cuenta: no hay
-            // TopAppBar en esta pantalla (ver MapScreen.kt), este Surface ES la barra superior.
-            IconButton(onClick = onOpenEvents) {
-                BadgedBox(
-                    badge = {
-                        if (unseenEventsCount > 0) {
-                            Badge { Text(if (unseenEventsCount > 9) "9+" else unseenEventsCount.toString()) }
+                    Box {
+                        IconButton(onClick = onOpenEvents) {
+                            Icon(
+                                Icons.Filled.Notifications,
+                                contentDescription = stringResource(R.string.events_bell_content_description),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (showUnreadDot) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(SoltelematicSpacing.xs)
+                                    .size(SoltelematicSpacing.sm)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.error)
+                            )
                         }
                     }
-                ) {
-                    Icon(
-                        Icons.Filled.Notifications,
-                        contentDescription = stringResource(R.string.events_bell_content_description)
-                    )
                 }
-            }
-            // Icono de perfil al final del buscador (patrón Google Maps): no compite con el
-            // buscador por espacio en la barra superior y abre la ficha de cuenta.
-            IconButton(onClick = onOpenAccount) {
-                Icon(Icons.Filled.AccountCircle, contentDescription = stringResource(R.string.map_open_account))
-            }
-        }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = SoltelematicMinTouchTarget)
+        )
+    }
+}
+
+@Composable
+private fun MapFab(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String?,
+    active: Boolean = false
+) {
+    FloatingActionButton(
+        onClick = onClick,
+        shape = SoltelematicShapes.medium,
+        containerColor = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        contentColor = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        elevation = FloatingActionButtonDefaults.elevation(
+            defaultElevation = SoltelematicElevation.e2,
+            pressedElevation = SoltelematicElevation.e2
+        )
+    ) {
+        Icon(icon, contentDescription = contentDescription)
     }
 }
 
@@ -268,17 +337,32 @@ private fun MapSearchBar(
 private fun FilterChipsRow(
     filters: List<AssetFilter>,
     activeFilter: AssetFilter,
+    counts: Map<AssetFilter, Int>,
     onFilterSelected: (AssetFilter) -> Unit
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
         modifier = Modifier.horizontalScroll(rememberScrollState())
     ) {
         filters.forEach { filter ->
+            val selected = filter == activeFilter
             FilterChip(
-                selected = filter == activeFilter,
+                selected = selected,
                 onClick = { onFilterSelected(filter) },
-                label = { Text(stringResource(filter.labelRes())) }
+                label = { Text("${stringResource(filter.labelRes())} ${counts[filter] ?: 0}", style = MaterialTheme.typography.labelLarge) },
+                shape = SoltelematicPillShape,
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+                    selectedLabelColor = MaterialTheme.colorScheme.surface
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = selected,
+                    borderColor = MaterialTheme.colorScheme.outline,
+                    selectedBorderColor = MaterialTheme.colorScheme.onSurface
+                )
             )
         }
     }

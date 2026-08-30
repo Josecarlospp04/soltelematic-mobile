@@ -2,6 +2,7 @@ package pe.soltelematic.mobile.ui.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -18,6 +19,7 @@ import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
+import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
 import pe.soltelematic.mobile.domain.repository.AssetRepository
 import pe.soltelematic.mobile.domain.repository.GeofencesRepository
 
@@ -27,8 +29,18 @@ class MapViewModel(
     private val socketRealtimeClient: SocketRealtimeClient,
     private val unseenEventsPoller: UnseenEventsPoller,
     private val geofencesRepository: GeofencesRepository,
-    private val userPreferences: UserPreferencesDataStore
+    private val userPreferences: UserPreferencesDataStore,
+    // Mismo repositorio que ya usa AssetDetailViewModel para "HOY" -- la hoja inferior del mapa
+    // reutiliza device/{id}+history y la geocodificación en vez de duplicar ese camino de red.
+    private val assetDetailRepository: AssetDetailRepository
 ) : ViewModel() {
+
+    // Caché de direcciones por coordenada exacta, mismo patrón que HistoryViewModel/EventsViewModel:
+    // vive mientras viva este ViewModel (una entrada al mapa), no persiste entre reaperturas.
+    private val addressCache = mutableMapOf<GeoPoint, String?>()
+
+    private var statsJob: Job? = null
+    private var addressJob: Job? = null
 
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
@@ -129,12 +141,93 @@ class MapViewModel(
         _uiState.update { it.copy(activeFilter = filter) }
     }
 
+    /**
+     * La hoja se abre YA con esto (lo que ya trae Asset, de devices/map) -- distancia/conducción/
+     * detenido/dirección llegan después y solo rellenan sus propios placeholders (ver
+     * loadSelectedAssetStats/loadSelectedAssetAddress), nunca bloquean ni retrasan la apertura.
+     */
     fun onAssetSelected(id: Int) {
-        _uiState.update { it.copy(selectedAssetId = id) }
+        _uiState.update {
+            it.copy(
+                selectedAssetId = id,
+                isSelectedAssetStatsLoading = true,
+                selectedAssetStats = emptyList(),
+                isSelectedAssetAddressLoading = true,
+                selectedAssetAddress = null
+            )
+        }
+        loadSelectedAssetStats(id)
+        loadSelectedAssetAddress(id)
     }
 
     fun onBottomSheetDismissed() {
-        _uiState.update { it.copy(selectedAssetId = null) }
+        statsJob?.cancel()
+        addressJob?.cancel()
+        _uiState.update {
+            it.copy(
+                selectedAssetId = null,
+                isSelectedAssetStatsLoading = false,
+                selectedAssetStats = emptyList(),
+                isSelectedAssetAddressLoading = false,
+                selectedAssetAddress = null
+            )
+        }
+    }
+
+    private fun loadSelectedAssetStats(id: Int) {
+        statsJob?.cancel()
+        statsJob = viewModelScope.launch {
+            when (val result = assetDetailRepository.getTodayStats(id)) {
+                is ApiResult.Success -> _uiState.update { state ->
+                    // Puede llegar tarde, después de que el usuario ya tocó otro marcador o
+                    // cerró la hoja -- no pisar un estado que ya no corresponde a esta unidad.
+                    if (state.selectedAssetId == id) {
+                        state.copy(isSelectedAssetStatsLoading = false, selectedAssetStats = result.data)
+                    } else {
+                        state
+                    }
+                }
+                // Sin error explícito: los stats se quedan en "-" (ver AssetBottomSheet), nunca
+                // un bloqueo -- mismo criterio que AssetDetailViewModel.loadTodayStats.
+                is ApiResult.Error -> _uiState.update { state ->
+                    if (state.selectedAssetId == id) state.copy(isSelectedAssetStatsLoading = false) else state
+                }
+            }
+        }
+    }
+
+    private fun loadSelectedAssetAddress(id: Int) {
+        addressJob?.cancel()
+        val position = _uiState.value.assets.firstOrNull { it.id == id }?.position
+        if (position == null) {
+            _uiState.update { it.copy(isSelectedAssetAddressLoading = false) }
+            return
+        }
+        if (addressCache.containsKey(position)) {
+            val cached = addressCache.getValue(position)
+            _uiState.update { state ->
+                if (state.selectedAssetId == id) {
+                    state.copy(isSelectedAssetAddressLoading = false, selectedAssetAddress = cached)
+                } else {
+                    state
+                }
+            }
+            return
+        }
+        addressJob = viewModelScope.launch {
+            val resolved = when (val result = assetDetailRepository.getAddress(position.lat, position.lng)) {
+                is ApiResult.Success -> result.data
+                is ApiResult.Error -> null
+            }
+            addressCache[position] = resolved
+            _uiState.update { state ->
+                if (state.selectedAssetId == id) {
+                    state.copy(isSelectedAssetAddressLoading = false, selectedAssetAddress = resolved)
+                } else {
+                    state
+                }
+            }
+        }
     }
 
     fun refresh() {

@@ -11,6 +11,7 @@ sealed class Destination(val route: String) {
     data object Login : Destination("login")
     data object ForgotPassword : Destination("forgot_password")
     data object Map : Destination("map")
+    data object Units : Destination("units")
     data object Account : Destination("account")
     data object Events : Destination("events")
     data object AssetDetail : Destination("asset/{$ASSET_ID_ARG}") {
