@@ -6,39 +6,40 @@ El backend es **GPSWOX** (Laravel 9 + Passport OAuth2), consumido a través de `
 
 > Terminología: en la interfaz y en el código se usa **"unidad"** o **"activo"**, nunca "vehículo" — la flota incluye equipos que no son vehículos.
 
-## Estado actual
+## ⚠️ Aviso de seguridad: el servidor de SOLTELEMATIC no tiene TLS todavía
 
-En desarrollo activo. **Sprint 0, Sprint 1, Sprint 2A y Sprint 2B completos:**
+El servidor de SOLTELEMATIC responde por **HTTP sin cifrar**, no HTTPS. La app permite tráfico en claro únicamente hacia esa IP específica (`app/src/main/res/xml/network_security_config.xml`), no hacia cualquier destino.
 
-- Login funcional contra el servidor real, con sesión persistida
-- Mapa en vivo con clustering de unidades
-- Filtros por estado (en línea, detenida, sin señal, etc.)
-- Ficha resumida al tocar una unidad (bottom sheet del mapa)
-- Actualización incremental de posiciones (sin recargar el mapa completo)
-- Ficha de unidad completa (pantalla `AssetDetail`, navegable desde "Ficha" del bottom sheet): cabecera con chip de estado, pestañas condicionales (Resumen siempre; Sensores/Servicios/Conductor solo si hay contenido), ubicación con dirección geocodificada y coordenadas copiables, métricas "HOY"
-- Historial de recorridos (pantalla `HistoryScreen`, navegable desde "Historial" en el bottom sheet y en la ficha): mapa con polyline por viaje y marcadores de parada/inicio/fin, línea de tiempo con vínculo bidireccional al mapa, resumen del periodo colapsable, selector de fechas (Hoy/Ayer/7 días/rango elegido con tope de 31 días), geocodificación perezosa y cacheada por parada, carga cancelable
+**Qué significa esto en la práctica:** si usás la app en una red no confiable (WiFi pública, por ejemplo), alguien más en esa misma red podría interceptar tus credenciales de inicio de sesión y los datos de posición de las unidades, porque viajan sin cifrar.
 
-**Fuera de alcance por ahora:** comandos a las unidades (fila visible mas deshabilitada en la ficha, puerta hacia Sprint 4), alertas.
+Migrar a HTTPS está en el plan, pero requiere un dominio propio — Let's Encrypt (y prácticamente cualquier autoridad certificadora) no emite certificados para direcciones IP directamente, solo para nombres de dominio. Hasta que eso se resuelva, esta limitación se mantiene.
 
-## Stack técnico
+## Instalar la app (usuarios de SOLTELEMATIC)
 
-- **Lenguaje:** Kotlin
-- **UI:** Jetpack Compose + Material 3
-- **Inyección de dependencias:** Koin
-- **Red:** Retrofit + OkHttp + kotlinx.serialization
-- **Base de datos local:** Room + KSP
-- **Mapas:** Google Maps SDK (Maps Compose + android-maps-utils para clustering)
-- **minSdk:** 26 (Android 8.0)
+No necesitás compilar nada, ni tener una API key de Google Maps, ni configurar un servidor: el APK publicado ya está listo para usarse con tus credenciales de SOLTELEMATIC.
 
-## Requisitos
+**Vía [Obtainium](https://github.com/ImranR98/Obtainium):**
+
+1. Instalá Obtainium.
+2. "Add App" → pegá la URL de este repositorio de GitHub.
+3. Obtainium detecta los releases y te deja instalar/actualizar el APK adjunto directamente, sin pasar por una tienda de aplicaciones.
+4. Abrí la app e iniciá sesión con tu usuario y contraseña de SOLTELEMATIC.
+
+Eso es todo — no hay ningún paso de configuración adicional para este flujo.
+
+## Compilar desde el código fuente (desarrolladores)
+
+Si vas a clonar este repo y compilarlo vos mismo (por ejemplo, para apuntar a tu propio servidor GPSWOX), necesitás lo siguiente.
+
+### Requisitos
 
 - Android Studio con soporte para AGP 9.2.1
 - JDK 11+
 - Un dispositivo o emulador con API 26 o superior
-- Acceso a un servidor GPSWOX con la API `clientlite` habilitada
-- Una API key de Google Maps (SDK for Android habilitado en Google Cloud Console)
+- Acceso a un servidor GPSWOX con la API `clientlite` habilitada (ver "Parches necesarios en el servidor GPSWOX" abajo)
+- Tu propia API key de Google Maps (SDK for Android habilitado en Google Cloud Console)
 
-## Cómo compilar
+### Configuración local
 
 El proyecto lee configuración local desde `local.properties`, que **no se versiona** (ya está en `.gitignore`). Sin este archivo la app compila pero no puede hacer llamadas de red ni mostrar el mapa.
 
@@ -48,7 +49,7 @@ Agrega estas líneas a tu `local.properties` (junto al `sdk.dir` que genera Andr
 # Debe terminar en "/" e incluir el prefijo /api/app/clientlite/
 SOLTELEMATIC_BASE_URL=http://tu-servidor/api/app/clientlite/
 
-# API key de Google Maps (SDK for Android)
+# Tu propia API key de Google Maps (SDK for Android)
 MAPS_API_KEY=tu-api-key-de-google-maps
 ```
 
@@ -60,16 +61,111 @@ Luego:
 
 o desde Android Studio, con un dispositivo/emulador conectado.
 
+> **Nota:** la URL del servidor queda compilada dentro del APK en tiempo de build (`BuildConfig.BASE_URL`), no es configurable desde la app en tiempo de ejecución. Apuntar a un servidor GPSWOX distinto del tuyo implica recompilar con otra `SOLTELEMATIC_BASE_URL`. Hacerla configurable en runtime está planeado para una versión futura.
+
 > **Servidor por HTTP (sin TLS):** si tu servidor de desarrollo responde en HTTP plano, Android bloquea ese tráfico desde API 28 por defecto. `app/src/main/res/xml/network_security_config.xml` habilita cleartext solo para el host configurado ahí — es una excepción **provisional** que debe eliminarse (junto con su referencia en `AndroidManifest.xml`) en cuanto el backend tenga HTTPS.
+
+### Parches necesarios en el servidor GPSWOX
+
+Estos tres parches se aplicaron directamente sobre la instalación de GPSWOX que usa SOLTELEMATIC — **no son parte de este repo** ni de la app Android, viven del lado del servidor. Si usás tu propia instancia de GPSWOX vas a necesitar los mismos, y **hay que volver a aplicarlos después de cada actualización de la plataforma GPSWOX**, porque el proceso de actualización sobrescribe estos archivos y no los conserva.
+
+**1. Passthrough de la cabecera `Authorization` en `.htaccess`**
+
+Sin este parche, Apache descarta la cabecera `Authorization` antes de que Laravel Passport llegue a verla, y **todas las rutas autenticadas devuelven 401 incluso con un token válido** — la app se ve "rota" sin ningún error que lo explique, porque desde el punto de vista de Passport la cabecera simplemente nunca llegó.
+
+Agregá esto al `.htaccess` de la instalación GPSWOX (o al bloque de configuración equivalente de tu vhost):
+
+```apache
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+```
+
+> Ojo con una variante muy común de este fix que usa `RewriteCond %{HTTP:Authorization} ^(.*)` junto con `%1` en el `RewriteRule`: `%1` es el grupo capturado por `^(.*)`, que en la práctica muchas veces solo captura el primer carácter de la cabecera, no el token completo. La versión de arriba evita ese problema tomando `%{HTTP:Authorization}` completo directamente.
+
+**2. El endpoint `/user` no devolvía el campo `id`**
+
+La respuesta de `/user` no incluía el `id` del usuario, que la app necesita persistir junto con la sesión. Se agregó en `SettingsController::userSettingsResponse()`:
+
+```php
+'id' => $this->user->id,
+```
+
+**3. `subscription_expiration` en cero en la cuenta de pruebas**
+
+La cuenta de pruebas tenía la fecha de expiración de suscripción sin configurar (devolvía cero/vacío). Se corrigió asignando una fecha de expiración válida a esa cuenta directamente en la base de datos de GPSWOX.
+
+### Generar un APK de release firmado
+
+El build type `release` firma automáticamente si encontrás estas 4 propiedades en tu `local.properties` (mismo mecanismo que `MAPS_API_KEY`); si no están presentes, `./gradlew assembleRelease` sigue compilando igual, solo que el APK resultante queda sin firmar.
+
+Primero generá tu propio keystore (nunca commitees el archivo `.jks` resultante — ya está en `.gitignore`):
+
+```
+keytool -genkeypair -v -keystore release.jks -alias soltelematic -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Vas a necesitar el SHA-1 de esa firma para restringir tu API key de Google Maps a tu propio `applicationId` + certificado, en vez de dejarla abierta:
+
+```
+keytool -list -v -keystore release.jks -alias soltelematic
+```
+
+(buscá la línea `SHA1:` en la salida — esa es la huella que se agrega en las restricciones de la API key en Google Cloud Console).
+
+Agregá a tu `local.properties`:
+
+```properties
+RELEASE_STORE_FILE=../release.jks
+RELEASE_STORE_PASSWORD=tu-contraseña-del-keystore
+RELEASE_KEY_ALIAS=soltelematic
+RELEASE_KEY_PASSWORD=tu-contraseña-de-la-clave
+```
+
+Y compilá:
+
+```
+./gradlew assembleRelease
+```
+
+El APK firmado queda en `app/build/outputs/apk/release/app-release.apk`.
+
+> **Sobre la ofuscación (R8/ProGuard):** `isMinifyEnabled` está en `false` a propósito en este release. El código fuente ya es público en este mismo repositorio, así que ofuscarlo no oculta nada real — el único beneficio posible sería reducir el tamaño del APK, a cambio de arrastrar el riesgo típico de que kotlinx.serialization/Retrofit (que usan reflection) fallen en tiempo de ejecución si falta alguna regla de ProGuard. Si en algún momento el tamaño del APK importa lo suficiente, activarlo merece su propio esfuerzo de reglas y pruebas en dispositivo, no hacerlo apurado dentro de otro cambio.
+
+## Estado actual
+
+En desarrollo activo. Completo hasta la fecha:
+
+- Login funcional contra el servidor real, con sesión persistida, y recuperación de contraseña
+- Mapa en vivo con clustering de unidades, marcadores tipo píldora (ícono + nombre + color de estado) y capa de geocercas
+- Filtros por estado (en línea, detenida, sin señal, etc.) y buscador, compartidos entre el mapa y la lista de Unidades
+- Ficha resumida al tocar una unidad (bottom sheet del mapa)
+- Actualización incremental de posiciones (sin recargar el mapa completo)
+- Ficha de unidad completa (pantalla `AssetDetail`): cabecera con chip de estado, pestañas condicionales (Resumen siempre; Sensores/Servicios/Conductor solo si hay contenido), ubicación con dirección geocodificada y coordenadas copiables, métricas "HOY"
+- Historial de recorridos: mapa con polyline por viaje y marcadores de parada/inicio/fin, línea de tiempo con intervalo explícito por tramo y vínculo bidireccional al mapa, resumen del periodo (incluyendo tiempo de conducción calculado del lado del cliente), selector de fechas (Hoy/Ayer/7 días/rango elegido con tope de 31 días), geocodificación perezosa y cacheada por parada
+- Bandeja de alertas con badge de no vistos
+- Pantalla de Unidades: listado alfabético de toda la flota, independiente del mapa
+- Sistema de diseño con tokens propios y soporte white-label
+
+**Fuera de alcance por ahora:** comandos a las unidades (fila visible pero deshabilitada en la ficha), URL de servidor configurable en runtime (ver nota arriba).
+
+## Stack técnico
+
+- **Lenguaje:** Kotlin
+- **UI:** Jetpack Compose + Material 3
+- **Inyección de dependencias:** Koin
+- **Red:** Retrofit + OkHttp + kotlinx.serialization
+- **Base de datos local:** Room + KSP
+- **Mapas:** Google Maps SDK (Maps Compose + android-maps-utils para clustering)
+- **minSdk:** 26 (Android 8.0)
 
 ## Arquitectura
 
 Arquitectura por capas:
 
-- **`core/`** — red (cliente HTTP, interceptores, manejo de errores), almacenamiento (tokens cifrados, preferencias), utilidades transversales
+- **`core/`** — red (cliente HTTP, interceptores, manejo de errores), almacenamiento (tokens cifrados, preferencias), formato (velocidad, duraciones) y otras utilidades transversales
 - **`data/`** — DTOs remotos, entidades Room, mappers entre capas y repositorios (implementan las interfaces de `domain/`)
 - **`domain/`** — modelos de negocio e interfaces de repositorio, sin dependencias de Android ni de red
-- **`ui/`** — pantallas Compose y ViewModels, organizados por feature (login, mapa, cuenta)
+- **`ui/`** — pantallas Compose y ViewModels, organizados por feature (login, mapa, unidades, historial, alertas, cuenta)
 
 El mapa vive detrás de una abstracción **`MapEngine`**: la pantalla y el ViewModel no conocen la API de Google Maps directamente, solo el contrato de `MapEngine` (unidades, clustering, cámara). Esto aísla el SDK de mapas del resto de la app — si en el futuro hiciera falta cambiar de proveedor, o testear la lógica de la pantalla sin un mapa real, el cambio queda contenido en la implementación (`GoogleMapEngine`) en vez de esparcirse por toda la UI.
 

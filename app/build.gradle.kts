@@ -18,6 +18,19 @@ val localProperties = Properties().apply {
 val soltelematicBaseUrl: String = localProperties.getProperty("SOLTELEMATIC_BASE_URL", "")
 val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY", "")
 
+// Firma de release, también desde local.properties (nunca versionada): igual que MAPS_API_KEY,
+// si estas 4 propiedades faltan (clon nuevo sin keystore propio) el build type release simplemente
+// queda sin signingConfig -- assembleRelease sigue funcionando para compilar/probar, solo que el
+// APK resultante no queda firmado para instalar. Ver README para el comando de keytool.
+val releaseStoreFile: String = localProperties.getProperty("RELEASE_STORE_FILE", "")
+val releaseStorePassword: String = localProperties.getProperty("RELEASE_STORE_PASSWORD", "")
+val releaseKeyAlias: String = localProperties.getProperty("RELEASE_KEY_ALIAS", "")
+val releaseKeyPassword: String = localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
+val hasReleaseSigningConfig: Boolean = releaseStoreFile.isNotBlank() &&
+    releaseStorePassword.isNotBlank() &&
+    releaseKeyAlias.isNotBlank() &&
+    releaseKeyPassword.isNotBlank()
+
 android {
     namespace = "pe.soltelematic.mobile"
     compileSdk {
@@ -30,8 +43,8 @@ android {
         applicationId = "pe.soltelematic.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BASE_URL", "\"$soltelematicBaseUrl\"")
@@ -40,13 +53,35 @@ android {
         manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Sin minificar a propósito: el código fuente ya es público en este mismo repo, así
+            // que R8 no aporta ninguna protección real (ofuscar no oculta nada que no esté ya en
+            // GitHub) -- el único beneficio real sería reducir el tamaño del APK, a cambio de
+            // arrastrar el riesgo típico de kotlinx.serialization/Retrofit con reflection bajo R8
+            // (serializers que no se encuentran en runtime si falta alguna regla) sin ninguna
+            // ganancia de seguridad que lo justifique. Si en el futuro el tamaño del APK importa,
+            // esto se activa aparte, con su propio proguard-rules.pro probado y su propia pasada
+            // de pruebas en dispositivo -- no como parte apurada de este release.
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {

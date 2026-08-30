@@ -22,3 +22,8 @@ skills-lock.json
 
 # Capturas de depuracion
 *.png
+
+# Keystore de firma de release: nunca se versiona, se referencia desde
+# local.properties (RELEASE_STORE_FILE), ver app/build.gradle.kts y README.
+*.jks
+*.keystore
