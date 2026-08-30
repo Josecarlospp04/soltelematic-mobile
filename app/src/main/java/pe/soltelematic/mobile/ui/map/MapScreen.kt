@@ -59,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -76,6 +77,8 @@ import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.MapEngine
 import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
 import pe.soltelematic.mobile.ui.theme.BrandLogo
+import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
+import pe.soltelematic.mobile.ui.theme.SoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicElevation
 import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
 import pe.soltelematic.mobile.ui.theme.SoltelematicPillShape
@@ -116,9 +119,13 @@ fun MapScreen(
         with(density) { PaddingValues(top = topOverlayHeightPx.toDp(), end = fabColumnWidthPx.toDp()) }
     }
 
-    // remember(uiState.visibleAssets): Asset es data class, así que dos listas con el mismo
-    // contenido son iguales -- un refresco que no cambia nada no reconstruye los marcadores.
-    val markers = remember(uiState.visibleAssets) {
+    // remember(uiState.visibleAssets, solColors): Asset es data class, así que dos listas con el
+    // mismo contenido son iguales -- un refresco que no cambia nada no reconstruye los
+    // marcadores. solColors entra también como llave porque el color de estado se resuelve acá
+    // (statusColorArgb, ver MapMarkerData): un cambio de tema claro/oscuro debe reconstruir los
+    // marcadores para que MarkerIconCache regenere sus bitmaps con el color correcto.
+    val solColors = LocalSoltelematicColors.current
+    val markers = remember(uiState.visibleAssets, solColors) {
         uiState.visibleAssets.mapNotNull { asset ->
             val position = asset.position ?: return@mapNotNull null
             MapMarkerData(
@@ -126,8 +133,7 @@ fun MapScreen(
                 position = position,
                 title = asset.name.orEmpty(),
                 iconUrl = asset.icon.url,
-                iconColorHex = asset.icon.colorHex,
-                courseDegrees = asset.icon.courseDegrees,
+                statusColorArgb = asset.status.type.toMarkerStatusColor(solColors).toArgb(),
                 dimmed = asset.status.type == AssetStatusType.OFFLINE
             )
         }
@@ -374,6 +380,17 @@ private fun AssetFilter.labelRes(): Int = when (this) {
     AssetFilter.STOPPED -> R.string.map_filter_stopped
     AssetFilter.BLOCKED -> R.string.map_filter_blocked
     AssetFilter.OFFLINE -> R.string.map_filter_offline
+}
+
+// Mismo mapeo de 4 colores que SummaryTab.statusPillColors/EventCard.toColors -- se duplica acá
+// (no vale la pena un archivo util por 4 líneas, convención del proyecto) en vez de tomar el
+// colorHex crudo del servidor: la píldora del mapa usa el color de ESTADO, no el que manda cada
+// unidad.
+private fun AssetStatusType.toMarkerStatusColor(colors: SoltelematicColors): Color = when (this) {
+    AssetStatusType.ONLINE -> colors.statusMoving
+    AssetStatusType.ENGINE, AssetStatusType.ACK -> colors.statusIdle
+    AssetStatusType.BLOCKED -> colors.statusAlert
+    AssetStatusType.OFFLINE, AssetStatusType.UNKNOWN -> colors.statusOffline
 }
 
 private fun Context.hasLocationPermission(): Boolean =

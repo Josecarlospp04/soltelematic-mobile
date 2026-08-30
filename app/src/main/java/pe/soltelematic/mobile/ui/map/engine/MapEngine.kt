@@ -15,10 +15,15 @@ data class MapMarkerData(
     val id: Int,
     val position: GeoPoint,
     val title: String,
+    /** PNG propio de la unidad (vehículo, maquinaria, candado...); null = sin ícono, ver iconColorHex. */
     val iconUrl: String?,
-    val iconColorHex: String?,
-    val courseDegrees: Float,
-    /** true cuando status.type == OFFLINE: el marcador se dibuja atenuado. */
+    // Color de estado ya resuelto (statusMoving/Idle/Alert/Offline según AssetStatusType, ver
+    // MapScreen.kt) como ARGB de Android, no el colorHex crudo del servidor: la píldora usa el
+    // mismo mapeo de 4 colores que el resto de la app, no la paleta libre del backend. Resuelto
+    // en MapScreen.kt (tiene LocalSoltelematicColors) para que este archivo siga sin depender de
+    // ningún proveedor de mapas.
+    val statusColorArgb: Int,
+    /** true cuando status.type == OFFLINE: la píldora completa (fondo, ícono y texto) se dibuja atenuada. */
     val dimmed: Boolean
 )
 

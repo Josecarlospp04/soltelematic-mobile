@@ -6,11 +6,13 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -115,6 +117,12 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         val density = LocalDensity.current
         val layoutDirection = LocalLayoutDirection.current
 
+        // Fondo/tinta de la píldora del marcador, resueltos acá (Compose tiene el tema) para
+        // pasarlos a MarkerIconCache/AssetClusterRenderer, que no son @Composable. Se leen en cada
+        // recomposición de Content -- MapEffect(markers) de abajo los usa cada vez que corre.
+        val pillSurfaceArgb = MaterialTheme.colorScheme.surface.toArgb()
+        val pillInkArgb = MaterialTheme.colorScheme.onSurface.toArgb()
+
         // contentPadding solo trae lo que MapScreen puede medir (barra+chips arriba, columna de
         // FABs a la derecha, ver MapScreen.kt) -- abajo hace falta sumar lo que le corresponde
         // a este motor concreto: la barra de navegación del sistema (safeDrawing, insets reales,
@@ -156,7 +164,9 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
             MapEffect(markers) { googleMap ->
                 val manager = clusteringState.manager ?: run {
                     val newManager = ClusterManager<AssetClusterItem>(context, googleMap)
-                    newManager.renderer = AssetClusterRenderer(context, googleMap, newManager, iconCache)
+                    val renderer = AssetClusterRenderer(context, googleMap, newManager, iconCache)
+                    newManager.renderer = renderer
+                    clusteringState.renderer = renderer
                     googleMap.setOnMarkerClickListener(newManager)
                     // Opción A del Bloque 7: coalesce varios onCameraIdle seguidos (zoom in/out
                     // en ráfaga) en una sola reclusterización.
@@ -171,9 +181,18 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
                     newManager
                 }
 
+                // El renderer se crea una sola vez (arriba); sus colores de píldora se refrescan
+                // en cada corrida de este efecto, así un cambio de tema no deja bitmaps viejos.
+                // let (no apply): apply expondría "this" como receptor implícito, y sus
+                // propiedades pillSurfaceArgb/pillInkArgb tapan a las locales del mismo nombre.
+                clusteringState.renderer?.let { renderer ->
+                    renderer.pillSurfaceArgb = pillSurfaceArgb
+                    renderer.pillInkArgb = pillInkArgb
+                }
+
                 // Se salta las claves ya cacheadas (ver MarkerIconCache), así que en un refresco
                 // con las mismas unidades esto no vuelve a pedir red.
-                iconCache.preload(markers)
+                iconCache.preload(markers, pillSurfaceArgb, pillInkArgb)
                 manager.clearItems()
                 manager.addItems(markers.map { AssetClusterItem(it) })
                 manager.cluster()
@@ -204,6 +223,7 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
 /** Sobrevive a recomposiciones (remember), no a cambios de configuración: no hace falta más. */
 private class ClusteringState {
     var manager: ClusterManager<AssetClusterItem>? = null
+    var renderer: AssetClusterRenderer? = null
     var selectionRing: Marker? = null
 }
 
