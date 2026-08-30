@@ -9,6 +9,7 @@ import pe.soltelematic.mobile.ui.forgot.ForgotPasswordViewModel
 import pe.soltelematic.mobile.ui.history.HistoryViewModel
 import pe.soltelematic.mobile.ui.login.LoginViewModel
 import pe.soltelematic.mobile.ui.map.MapViewModel
+import pe.soltelematic.mobile.ui.units.UnitsViewModel
 
 val viewModelModule = module {
     viewModel { LoginViewModel(get(), get(), get()) }
@@ -20,4 +21,5 @@ val viewModelModule = module {
     viewModel { (assetId: Int) -> AssetDetailViewModel(assetId, get()) }
     viewModel { (assetId: Int) -> HistoryViewModel(assetId, get()) }
     viewModel { EventsViewModel(get(), get(), get()) }
+    viewModel { UnitsViewModel(get()) }
 }

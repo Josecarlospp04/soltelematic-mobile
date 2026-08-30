@@ -130,7 +130,11 @@ fun SoltelematicNavHost(
                 )
             }
             composable(Destination.Units.route) {
-                UnitsScreen()
+                UnitsScreen(
+                    onOpenAssetDetail = { assetId ->
+                        navController.navigate(Destination.AssetDetail.createRoute(assetId))
+                    }
+                )
             }
             composable(Destination.Events.route) {
                 EventsScreen(

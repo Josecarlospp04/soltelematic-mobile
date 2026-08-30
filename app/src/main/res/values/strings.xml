@@ -137,8 +137,17 @@
     <string name="nav_tab_events">Alertas</string>
     <string name="nav_tab_account">Cuenta</string>
     <string name="units_title">Unidades</string>
-    <string name="units_empty_title">Próximamente</string>
-    <string name="units_empty_message">La lista de unidades todavía no está disponible en esta versión.</string>
+    <!-- Flota realmente vacía (sin filtro ni búsqueda activos): caso distinto de
+         units_empty_filter_*, que es "0 resultados para ESTE filtro". -->
+    <string name="units_empty_title">Sin unidades</string>
+    <string name="units_empty_message">No tienes unidades asignadas todavía.</string>
+    <string name="units_empty_search">Sin resultados para esta búsqueda</string>
+    <string name="units_empty_on_route_title">Ninguna unidad en ruta</string>
+    <string name="units_empty_stopped_title">Ninguna unidad detenida</string>
+    <string name="units_empty_blocked_title">Ninguna unidad bloqueada</string>
+    <string name="units_empty_offline_title">Ninguna unidad sin reportar</string>
+    <string name="units_empty_filter_message">Cuando una unidad cambie a este estado, aparecerá aquí.</string>
+    <string name="units_empty_filter_action">Ver todas las unidades</string>
     <string name="account_back">Volver</string>
     <string name="account_server_line">Servidor: %1$s</string>
     <string name="account_logout">Cerrar sesión</string>

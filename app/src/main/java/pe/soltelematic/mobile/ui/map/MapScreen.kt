@@ -8,7 +8,6 @@ import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,32 +19,24 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LayersClear
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.ZoomOutMap
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,7 +56,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.content.ContextCompat
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -73,15 +63,14 @@ import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
+import pe.soltelematic.mobile.ui.components.AssetFilterChipsRow
+import pe.soltelematic.mobile.ui.components.AssetSearchBar
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.MapEngine
 import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
-import pe.soltelematic.mobile.ui.theme.BrandLogo
 import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicElevation
-import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
-import pe.soltelematic.mobile.ui.theme.SoltelematicPillShape
 import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
 import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
@@ -188,7 +177,7 @@ fun MapScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(SoltelematicSpacing.sm))
-            FilterChipsRow(
+            AssetFilterChipsRow(
                 filters = visibleFilters,
                 activeFilter = uiState.activeFilter,
                 counts = filterCounts,
@@ -258,64 +247,34 @@ private fun MapSearchBar(
     showUnreadDot: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = SoltelematicShapes.small,
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = SoltelematicElevation.e2,
-        modifier = modifier
-    ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            placeholder = {
-                Text(
-                    stringResource(R.string.map_search_placeholder),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            singleLine = true,
-            // Ícono de marca en vez de una lupa genérica (ver mockup): BrandLogo ya existe en
-            // Theme.kt con brand = null para el acento/nombre por defecto de SOLTELEMATIC.
-            leadingIcon = { BrandLogo(brand = null) },
-            trailingIcon = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.map_search_clear))
-                        }
-                    }
-                    Box {
-                        IconButton(onClick = onOpenEvents) {
-                            Icon(
-                                Icons.Filled.Notifications,
-                                contentDescription = stringResource(R.string.events_bell_content_description),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (showUnreadDot) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(SoltelematicSpacing.xs)
-                                    .size(SoltelematicSpacing.sm)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.error)
-                            )
-                        }
-                    }
+    // Chrome compartido con Unidades (ver ui/components/AssetListControls.kt) -- acá se le agrega
+    // la campana + punto de no vistos, que solo tiene sentido en el mapa.
+    AssetSearchBar(
+        query = query,
+        onQueryChange = onQueryChange,
+        modifier = modifier,
+        trailingContent = {
+            Box {
+                IconButton(onClick = onOpenEvents) {
+                    Icon(
+                        Icons.Filled.Notifications,
+                        contentDescription = stringResource(R.string.events_bell_content_description),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-            },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color.Transparent,
-                unfocusedBorderColor = Color.Transparent
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = SoltelematicMinTouchTarget)
-        )
-    }
+                if (showUnreadDot) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(SoltelematicSpacing.xs)
+                            .size(SoltelematicSpacing.sm)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                    )
+                }
+            }
+        }
+    )
 }
 
 @Composable
@@ -337,49 +296,6 @@ private fun MapFab(
     ) {
         Icon(icon, contentDescription = contentDescription)
     }
-}
-
-@Composable
-private fun FilterChipsRow(
-    filters: List<AssetFilter>,
-    activeFilter: AssetFilter,
-    counts: Map<AssetFilter, Int>,
-    onFilterSelected: (AssetFilter) -> Unit
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
-        modifier = Modifier.horizontalScroll(rememberScrollState())
-    ) {
-        filters.forEach { filter ->
-            val selected = filter == activeFilter
-            FilterChip(
-                selected = selected,
-                onClick = { onFilterSelected(filter) },
-                label = { Text("${stringResource(filter.labelRes())} ${counts[filter] ?: 0}", style = MaterialTheme.typography.labelLarge) },
-                shape = SoltelematicPillShape,
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    selectedContainerColor = MaterialTheme.colorScheme.onSurface,
-                    selectedLabelColor = MaterialTheme.colorScheme.surface
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = selected,
-                    borderColor = MaterialTheme.colorScheme.outline,
-                    selectedBorderColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
-    }
-}
-
-private fun AssetFilter.labelRes(): Int = when (this) {
-    AssetFilter.ALL -> R.string.map_filter_all
-    AssetFilter.ON_ROUTE -> R.string.map_filter_on_route
-    AssetFilter.STOPPED -> R.string.map_filter_stopped
-    AssetFilter.BLOCKED -> R.string.map_filter_blocked
-    AssetFilter.OFFLINE -> R.string.map_filter_offline
 }
 
 // Mismo mapeo de 4 colores que SummaryTab.statusPillColors/EventCard.toColors -- se duplica acá
