@@ -71,11 +71,25 @@ fun SoltelematicNavHost(
     // Alertas es una de las 4 pestañas, pero también se llega a ella desde la campana dentro de
     // Mapa (ver mockup) -- ambos caminos deben dejar el back stack exactamente igual, o mezclar
     // un navigate() simple (campana) con el patrón popUpTo/singleTop/restoreState (pestañas) deja
-    // el grafo en un estado inconsistente y rompe la navegación de tabs más adelante (visto en
-    // dispositivo: tras entrar a Alertas por la campana y luego cambiar de pestaña un par de
-    // veces, "Mapa" dejaba de navegar). Un solo camino para cualquier destino-pestaña, sin excepción.
+    // el grafo en un estado inconsistente. Un solo camino para cualquier destino-pestaña, sin
+    // excepción.
+    //
+    // La guarda de "ya estoy ahí" NO puede leer currentRoute (el `by currentBackStackEntryAsState()`
+    // de arriba): quedó demostrado con logging en dispositivo que esa lectura se queda pegada al
+    // valor de la composición en la que se creó este navigateToTab() -- el closure que captura
+    // NavigationBarItem.onClick no se refresca en cada recomposición de este NavHost (Compose no
+    // tiene motivo para recomponer ese ítem si su propio `selected` no cambió), así que currentRoute
+    // podía seguir reportando "map" mucho después de haber navegado a otra pestaña. Eso hacía que
+    // "Mapa" desde Alertas o Cuenta pareciera no hacer nada: la guarda comparaba destination.route
+    // ("map") contra ese currentRoute obsoleto (también "map") y retornaba temprano sin llamar a
+    // navigate() -- el back stack real (navController.currentBackStack.value) sí tenía "events" o
+    // "account" arriba todo el tiempo, por eso el botón físico de atrás sí volvía al mapa. La guarda
+    // ahora lee navController.currentDestination?.route directo del NavController (no una State de
+    // Compose), que nunca queda desactualizado. Con esa guarda corregida, el patrón
+    // popUpTo(startDestination)+launchSingleTop+restoreState de abajo funciona igual para las 4
+    // pestañas, Mapa incluido -- no hace falta ningún caso especial para la start destination.
     fun navigateToTab(destination: Destination) {
-        if (destination.route == currentRoute) return
+        if (destination.route == navController.currentDestination?.route) return
         navController.navigate(destination.route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
