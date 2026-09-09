@@ -6,6 +6,8 @@ import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -16,6 +18,7 @@ import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.PolyUtil
+import com.google.maps.android.compose.CameraMoveStartedReason
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
@@ -93,7 +96,9 @@ class GoogleRouteMapEngine : RouteMapEngine {
         polylines: List<RoutePolyline>,
         markers: List<RouteMarkerData>,
         selectedLegIndex: Int?,
-        onMarkerClick: (Int) -> Unit
+        onMarkerClick: (Int) -> Unit,
+        playbackPoint: GeoPoint?,
+        onCameraGesture: () -> Unit
     ) {
         // Casteo seguro: el único MapCameraController que existe hoy para este contrato es el
         // que devuelve rememberCameraController() de esta misma clase.
@@ -116,6 +121,29 @@ class GoogleRouteMapEngine : RouteMapEngine {
                     primary = primaryArgb
                 )
             )
+        }
+        // Círculo primary agrandado (reusa buildRouteMarkerBitmap con selected=true) con un anillo
+        // surface para que resalte sobre cualquier color de tramo -- no es un rol más de
+        // RouteMarkerRole porque no participa del mapa (role, seleccionado) de markerIcons: solo
+        // existe uno, nunca "seleccionado/no seleccionado".
+        val playbackMarkerIcon = remember(density, primaryArgb, surfaceArgb) {
+            buildRouteMarkerBitmap(
+                density = density,
+                selected = true,
+                fillColor = primaryArgb,
+                strokeColor = null,
+                innerDotColor = null,
+                selectionRingColor = surfaceArgb
+            )
+        }
+
+        // GESTURE es el único reason que dispara esto (centerOn/moveInstantly del propio engine
+        // caen en API_ANIMATION/DEVELOPER_ANIMATION, ver MapCameraController.moveInstantly) -- así
+        // que solo un arrastre real del usuario suelta el seguimiento de cámara en HistoryScreen.
+        LaunchedEffect(googleController.cameraPositionState.cameraMoveStartedReason) {
+            if (googleController.cameraPositionState.cameraMoveStartedReason == CameraMoveStartedReason.GESTURE) {
+                onCameraGesture()
+            }
         }
 
         GoogleMap(
@@ -161,6 +189,22 @@ class GoogleRouteMapEngine : RouteMapEngine {
                         onMarkerClick(marker.legIndex)
                         true
                     }
+                )
+            }
+
+            // MarkerState.position es mutableStateOf (ver maps-compose) -- mutarlo directo mueve
+            // el Marker nativo sin quitarlo/agregarlo de nuevo, a diferencia de recrear
+            // rememberMarkerState(position=...) en cada tick (ese overload solo lee position en
+            // la creación). rememberMarkerState() se llama siempre, fuera del if, para que el
+            // slot de Compose sea estable entre reproducción activa e inactiva.
+            val playbackMarkerState = rememberMarkerState()
+            if (playbackPoint != null) {
+                SideEffect { playbackMarkerState.position = playbackPoint.toLatLng() }
+                Marker(
+                    state = playbackMarkerState,
+                    icon = playbackMarkerIcon,
+                    zIndex = 2f,
+                    onClick = { true }
                 )
             }
         }

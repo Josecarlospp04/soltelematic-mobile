@@ -49,6 +49,19 @@ interface RouteMapEngine {
         selectedLegIndex: Int?,
         // Contrato: nunca abrir un InfoWindow/popup -- esos datos ya están en la línea de tiempo
         // (ver plan del Sprint 2B). El único efecto de tocar un marcador es reportar legIndex.
-        onMarkerClick: (Int) -> Unit
+        onMarkerClick: (Int) -> Unit,
+        // Posición actual del marcador de reproducción (ver HistoryViewModel.playback), null si no
+        // hay reproducción en curso -- la ruta completa (polylines de arriba) se sigue dibujando
+        // igual, este marcador solo se superpone encima, nunca la reemplaza ni la dibuja de a poco.
+        //
+        // Sin valor por defecto a propósito: un default en un miembro @Composable de una interfaz
+        // no genera el bridge $default correctamente (AbstractMethodError en runtime al llamarlo a
+        // través del tipo de interfaz -- confirmado en dispositivo). Todo caller, incluidos los
+        // previews, pasa estos dos parámetros explícitos.
+        playbackPoint: GeoPoint?,
+        // Se dispara la primera vez que el usuario arrastra el mapa a mano (GESTURE, nunca por
+        // centerOn/moveInstantly propios del engine) -- HistoryScreen lo usa para dejar de mover
+        // la cámara detrás del marcador en cuanto el usuario le pelea el gesto.
+        onCameraGesture: () -> Unit
     )
 }

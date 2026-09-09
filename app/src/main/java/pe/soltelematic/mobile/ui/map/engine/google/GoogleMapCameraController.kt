@@ -1,6 +1,7 @@
 package pe.soltelematic.mobile.ui.map.engine.google
 
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.maps.android.compose.CameraPositionState
@@ -30,6 +31,14 @@ class GoogleMapCameraController(
                 CameraUpdateFactory.newLatLngZoom(LatLng(point.lat, point.lng), zoomLevel)
             )
         }
+    }
+
+    // Escribe cameraPositionState.position directo (map.moveCamera por debajo, ver
+    // CameraPositionState.position setter) en vez de animate()/CameraUpdateFactory.newLatLngZoom:
+    // un salto sin animación no tiene duración que pisar con el siguiente tick.
+    override fun moveInstantly(point: GeoPoint) {
+        val current = cameraPositionState.position
+        cameraPositionState.position = CameraPosition(LatLng(point.lat, point.lng), current.zoom, current.tilt, current.bearing)
     }
 
     override fun fitAll(points: List<GeoPoint>) {

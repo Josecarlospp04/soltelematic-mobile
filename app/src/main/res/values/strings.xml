@@ -122,6 +122,10 @@
     <string name="history_error_title">No pudimos cargar el historial</string>
     <string name="history_error_message">El servidor no respondió. Revisa tu conexión e inténtalo otra vez.</string>
     <string name="history_error_detail">error %1$s · %2$s</string>
+    <string name="history_playback_play">Reproducir</string>
+    <string name="history_playback_pause">Pausar</string>
+    <string name="history_playback_point_counter_format">%1$d / %2$d</string>
+    <string name="history_playback_speed_multiplier_format">%1$d×</string>
 
     <string name="events_title">Alertas</string>
     <string name="events_search_placeholder">Buscar por unidad o tipo</string>

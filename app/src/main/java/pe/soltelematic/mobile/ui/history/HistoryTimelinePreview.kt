@@ -33,6 +33,11 @@ private fun HistoryTimelinePreview() {
                 2 to AddressResolution.Loading
             ),
             onStopRowVisible = { _, _ -> },
+            playbackPoints = emptyList(),
+            playback = HistoryPlaybackState(),
+            onPlayPauseClick = {},
+            onScrub = {},
+            onSpeedMultiplierClick = {},
             modifier = Modifier.fillMaxSize()
         )
     }

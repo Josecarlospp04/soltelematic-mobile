@@ -37,6 +37,13 @@ interface MapCameraController {
     fun centerOn(point: GeoPoint, zoomLevel: Float = DEFAULT_ZOOM)
     fun fitAll(points: List<GeoPoint>)
 
+    // Salto instantáneo, sin animación -- para seguir un marcador que se mueve varias veces por
+    // segundo (reproducción de recorrido, ver HistoryScreen): centerOn() anima con
+    // CameraUpdateFactory.newLatLngZoom, y encolar una animación nueva antes de que la anterior
+    // termine (a 8x el marcador avanza cada ~25ms) es la causa típica de jank de cámara. Preserva
+    // zoom/tilt/bearing actuales -- no fuerza el zoom que sí trae centerOn().
+    fun moveInstantly(point: GeoPoint)
+
     companion object {
         const val DEFAULT_ZOOM = 16f
     }

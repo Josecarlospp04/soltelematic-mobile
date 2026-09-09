@@ -16,10 +16,26 @@ data class HistoryUiState(
     val mapData: RouteMapData? = null,
     val error: ApiError? = null,
     val selectedLegIndex: Int? = null,
-    val addresses: Map<Int, AddressResolution> = emptyMap()
+    val addresses: Map<Int, AddressResolution> = emptyMap(),
+    // Puntos GPS originales (sin simplificar, ver HistoryRouteMapMapper.toPlaybackPoints) de todos
+    // los viajes del día, ya en memoria desde la misma respuesta de getRoute -- la reproducción no
+    // dispara ninguna llamada de red propia.
+    val playbackPoints: List<HistoryPlaybackPoint> = emptyList(),
+    val playback: HistoryPlaybackState = HistoryPlaybackState()
 )
 
 sealed interface AddressResolution {
     data object Loading : AddressResolution
     data class Resolved(val address: String?) : AddressResolution
 }
+
+/**
+ * currentIndex indexa playbackPoints (no HistoryRoute.legs) -- 0..playbackPoints.lastIndex.
+ * speedMultiplier es siempre uno de 1/2/4/8 (ver HistoryViewModel.onSpeedMultiplierCycled), nunca
+ * un valor libre.
+ */
+data class HistoryPlaybackState(
+    val isPlaying: Boolean = false,
+    val currentIndex: Int = 0,
+    val speedMultiplier: Int = 1
+)

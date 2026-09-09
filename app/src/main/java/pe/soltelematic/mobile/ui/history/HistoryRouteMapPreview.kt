@@ -39,7 +39,9 @@ private fun HistoryRouteMapPreview() {
             polylines = mapData.polylines,
             markers = mapData.markers,
             selectedLegIndex = 0,
-            onMarkerClick = {}
+            onMarkerClick = {},
+            playbackPoint = null,
+            onCameraGesture = {}
         )
     }
 }

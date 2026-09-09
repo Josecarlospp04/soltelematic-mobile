@@ -3,6 +3,7 @@ package pe.soltelematic.mobile.ui.history
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,13 +14,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
@@ -38,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.format.formatDurationCompact
 import pe.soltelematic.mobile.core.format.isDurationStatKey
+import pe.soltelematic.mobile.core.format.normalizeSpeedUnit
 import pe.soltelematic.mobile.core.format.sumDurationsCompact
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.HistoryDriveLeg
@@ -52,15 +60,20 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 private val LegDotSize = 10.dp
+private val PlaybackHighlightBorderWidth = 1.5.dp
 
 /**
- * Sin reproducción animada (sin play/pausa, sin contador de puntos): una lista simple en orden
- * cronológico, tal como llega en HistoryRoute.legs -- todas las paradas se muestran, sin filtrar
- * por duración. El vínculo con el mapa (Bloque 2) es por índice: seleccionar una fila acá es
- * exactamente lo mismo que tocar su marcador en el mapa, misma legIndex.
+ * Lista simple en orden cronológico, tal como llega en HistoryRoute.legs -- todas las paradas se
+ * muestran, sin filtrar por duración. El vínculo con el mapa (Bloque 2) es por índice: seleccionar
+ * una fila acá es exactamente lo mismo que tocar su marcador en el mapa, misma legIndex.
+ *
+ * La barra de reproducción (Bloque de reproducción) vive como un item más de este mismo
+ * LazyColumn, entre el resumen y la lista de tramos -- solo si hay algún punto reproducible
+ * (playbackPoints no vacío); un día sin viajes (solo paradas) no la muestra.
  */
 @Composable
 fun HistoryTimeline(
@@ -73,8 +86,17 @@ fun HistoryTimeline(
     // un margen chico) de un LazyColumn, así que esto ES el mecanismo de "solo pedir cuando la
     // fila entra en pantalla": no hace falta rastrear scroll a mano.
     onStopRowVisible: (Int, GeoPoint) -> Unit,
+    playbackPoints: List<HistoryPlaybackPoint>,
+    playback: HistoryPlaybackState,
+    onPlayPauseClick: () -> Unit,
+    onScrub: (Int) -> Unit,
+    onSpeedMultiplierClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // legIndex del punto que se está reproduciendo ahora mismo -- null si no hay reproducción o
+    // el índice cayó fuera de rango (no debería, currentIndex siempre se acota a playbackPoints).
+    val playingLegIndex = playbackPoints.getOrNull(playback.currentIndex)?.legIndex
+
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(vertical = SoltelematicSpacing.sm, horizontal = SoltelematicSpacing.lg),
@@ -83,6 +105,21 @@ fun HistoryTimeline(
         // Primera fila de la lista, no del mapa: el espacio sale de acá, el mapa no se achica
         // (confirmado con el usuario).
         item { RouteSummarySection(legs = legs, periodStats = periodStats) }
+
+        if (playbackPoints.size >= 2) {
+            item {
+                HistoryPlaybackBar(
+                    currentPoint = playbackPoints.getOrNull(playback.currentIndex),
+                    pointIndex = playback.currentIndex,
+                    totalPoints = playbackPoints.size,
+                    isPlaying = playback.isPlaying,
+                    speedMultiplier = playback.speedMultiplier,
+                    onPlayPauseClick = onPlayPauseClick,
+                    onScrub = onScrub,
+                    onSpeedMultiplierClick = onSpeedMultiplierClick
+                )
+            }
+        }
 
         itemsIndexed(legs) { index, leg ->
             if (leg is HistoryStopLeg) {
@@ -94,6 +131,10 @@ fun HistoryTimeline(
             HistoryLegRow(
                 leg = leg,
                 selected = index == selectedLegIndex,
+                // Un tramo no se resalta dos veces con criterios distintos: la selección manual
+                // (fila tocada o marcador tocado) tiene prioridad visual sobre el resaltado de
+                // reproducción si coinciden en el mismo tramo.
+                isPlaying = index == playingLegIndex && index != selectedLegIndex,
                 addressResolution = addresses[index],
                 onClick = { onLegClick(index) }
             )
@@ -236,10 +277,136 @@ private fun ExtraStatsSection(stats: List<UnitStat>) {
     }
 }
 
+/**
+ * Fila de info (velocidad | contador de puntos | hora) + fila de controles (play/pausa, scrubber,
+ * multiplicador). currentPoint puede ser null solo en el instante entre "la ruta cargó" y "el
+ * primer valor de playback llegó" -- en la práctica nunca pasa (currentIndex arranca en 0 y
+ * playbackPoints ya viene poblado cuando este item se muestra, ver HistoryTimeline), pero se cubre
+ * igual para no forzar un !! contra el estado del ViewModel.
+ */
+@Composable
+private fun HistoryPlaybackBar(
+    currentPoint: HistoryPlaybackPoint?,
+    pointIndex: Int,
+    totalPoints: Int,
+    isPlaying: Boolean,
+    speedMultiplier: Int,
+    onPlayPauseClick: () -> Unit,
+    onScrub: (Int) -> Unit,
+    onSpeedMultiplierClick: () -> Unit
+) {
+    Surface(
+        shape = SoltelematicShapes.medium,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(SoltelematicSpacing.md)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    text = currentPoint.speedDisplayText(),
+                    style = SoltelematicMetricTypography.small,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.history_playback_point_counter_format, pointIndex + 1, totalPoints),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = LocalSoltelematicColors.current.inkFaint
+                )
+                Text(
+                    text = currentPoint?.position?.time.toTimeText(),
+                    style = SoltelematicMetricTypography.small,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)) {
+                PlaybackPlayPauseButton(isPlaying = isPlaying, onClick = onPlayPauseClick)
+                // steps para que el thumb solo pare en índices enteros de playbackPoints -- onScrub
+                // ya redondea, pero esto además da feedback táctil/visual de "salto a salto".
+                Slider(
+                    value = pointIndex.toFloat(),
+                    onValueChange = { onScrub(it.roundToInt()) },
+                    valueRange = 0f..(totalPoints - 1).toFloat(),
+                    steps = (totalPoints - 2).coerceAtLeast(0),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                SpeedMultiplierChip(multiplier = speedMultiplier, onClick = onSpeedMultiplierClick)
+            }
+        }
+    }
+}
+
+/** Círculo primary de 48dp -- mismo criterio de "botón propio" que HistoryCalendarButton en HistoryScreen.kt. */
+@Composable
+private fun PlaybackPlayPauseButton(isPlaying: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(SoltelematicMinTouchTarget)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+            contentDescription = stringResource(
+                if (isPlaying) R.string.history_playback_pause else R.string.history_playback_play
+            ),
+            tint = MaterialTheme.colorScheme.onPrimary
+        )
+    }
+}
+
+/**
+ * Chip propio en vez de AssistChip/SuggestionChip de Material3: esos traen una altura fija menor a
+ * 48dp (ver AssistChipDefaults.Height), y acá el mínimo táctil es requisito. Mismo patrón de Box +
+ * clickable que HistoryCalendarButton.
+ */
+@Composable
+private fun SpeedMultiplierChip(multiplier: Int, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .heightIn(min = SoltelematicMinTouchTarget)
+            .widthIn(min = SoltelematicMinTouchTarget)
+            .clip(SoltelematicShapes.small)
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = SoltelematicSpacing.sm),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = stringResource(R.string.history_playback_speed_multiplier_format, multiplier),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+/** "46 KM/H" -- speedText es el número crudo del servidor (ver HistoryPositionDto.s), sin unidad
+ * propia; normalizeSpeedUnit(null) es la función de formato de velocidad ya existente en el resto
+ * de la app (ver core/format/SpeedFormat.kt), acá con unit=null porque el servidor no manda una
+ * distinta para positions[].s. */
+private fun HistoryPlaybackPoint?.speedDisplayText(): String {
+    val raw = this?.position?.speedText ?: return "-"
+    return "$raw ${normalizeSpeedUnit(null)}"
+}
+
 @Composable
 private fun HistoryLegRow(
     leg: HistoryLeg,
     selected: Boolean,
+    // true mientras el marcador de reproducción recorre este tramo (ver HistoryTimeline.playingLegIndex)
+    // -- un borde primary, no un relleno, para no competir visualmente con el fondo sólido de selected.
+    isPlaying: Boolean,
     addressResolution: AddressResolution?,
     onClick: () -> Unit
 ) {
@@ -249,6 +416,13 @@ private fun HistoryLegRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = SoltelematicMinTouchTarget)
+            .let {
+                if (isPlaying) {
+                    it.border(PlaybackHighlightBorderWidth, MaterialTheme.colorScheme.primary, SoltelematicShapes.medium)
+                } else {
+                    it
+                }
+            }
             .clickable(onClick = onClick)
     ) {
         Row(

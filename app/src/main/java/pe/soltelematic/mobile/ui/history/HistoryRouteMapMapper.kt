@@ -3,6 +3,7 @@ package pe.soltelematic.mobile.ui.history
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.HistoryDriveLeg
 import pe.soltelematic.mobile.domain.model.HistoryLeg
+import pe.soltelematic.mobile.domain.model.HistoryPosition
 import pe.soltelematic.mobile.domain.model.HistoryRoute
 import pe.soltelematic.mobile.domain.model.HistoryStopLeg
 import pe.soltelematic.mobile.ui.map.engine.RouteMarkerData
@@ -105,6 +106,29 @@ fun RouteMapData.cameraTargetFor(route: HistoryRoute, legIndex: Int): CameraTarg
     val point = markers.firstOrNull { it.legIndex == legIndex }?.position ?: leg.start.point
     return point?.let { CameraTarget.Point(it) }
 }
+
+/**
+ * Un punto reproducible de la línea de tiempo animada (Bloque de reproducción). legIndex es la
+ * posición del HistoryDriveLeg dueño de este punto en HistoryRoute.legs -- mismo campo que ya usan
+ * los marcadores/polylines, permite resaltar el tramo correspondiente en HistoryTimeline mientras
+ * se reproduce, sin inventar un segundo esquema de índices.
+ */
+data class HistoryPlaybackPoint(val legIndex: Int, val position: HistoryPosition)
+
+/**
+ * Todas las posiciones GPS originales de los viajes del día, concatenadas en orden cronológico --
+ * las mismas que ya trae HistoryRoute.legs[].positions (sin pasar por RouteSimplifier/PolyUtil.
+ * simplify, que solo vive dentro de GoogleRouteMapEngine para dibujar el polyline estático y nunca
+ * toca el modelo de dominio). Se usan tal cual, sin simplificar, porque la reproducción necesita la
+ * velocidad y el paso real entre puntos, no una geometría reducida para dibujar más rápido.
+ *
+ * Las paradas no aportan puntos (no traen traza GPS, solo start/end) -- el marcador de reproducción
+ * salta directo del último punto de un viaje al primero del siguiente, la parada en sí no se anima.
+ */
+fun HistoryRoute.toPlaybackPoints(): List<HistoryPlaybackPoint> =
+    legs.withIndex().flatMap { (index, leg) ->
+        if (leg !is HistoryDriveLeg) emptyList() else leg.positions.map { HistoryPlaybackPoint(index, it) }
+    }
 
 private fun isRoundTripAtSameStop(firstLeg: HistoryLeg?, lastLeg: HistoryLeg?): Boolean {
     if (firstLeg !is HistoryStopLeg || lastLeg !is HistoryStopLeg || firstLeg === lastLeg) return false

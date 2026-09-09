@@ -158,6 +158,11 @@ fun HistoryScreen(
                     addresses = uiState.addresses,
                     onLegSelected = viewModel::onLegSelected,
                     onStopRowVisible = viewModel::onStopRowVisible,
+                    playbackPoints = uiState.playbackPoints,
+                    playback = uiState.playback,
+                    onPlayPauseClick = viewModel::onPlayPauseToggled,
+                    onScrub = viewModel::onScrub,
+                    onSpeedMultiplierClick = viewModel::onSpeedMultiplierCycled,
                     routeMapEngine = routeMapEngine
                 )
             }
@@ -294,9 +299,27 @@ private fun HistoryContent(
     addresses: Map<Int, AddressResolution>,
     onLegSelected: (Int) -> Unit,
     onStopRowVisible: (Int, GeoPoint) -> Unit,
+    playbackPoints: List<HistoryPlaybackPoint>,
+    playback: HistoryPlaybackState,
+    onPlayPauseClick: () -> Unit,
+    onScrub: (Int) -> Unit,
+    onSpeedMultiplierClick: () -> Unit,
     routeMapEngine: RouteMapEngine
 ) {
     val cameraController = routeMapEngine.rememberCameraController()
+
+    // Sigue al marcador de reproducción mientras isPlaying y nadie tocó el mapa a mano. Un
+    // arrastre real (onCameraGesture, ver GoogleRouteMapEngine) lo apaga hasta el próximo play
+    // explícito -- no hay botón de "volver a seguir" (ver conversación con el usuario).
+    var followPlaybackCamera by remember { mutableStateOf(true) }
+    LaunchedEffect(playback.isPlaying) {
+        if (playback.isPlaying) followPlaybackCamera = true
+    }
+    LaunchedEffect(playback.currentIndex) {
+        if (!playback.isPlaying || !followPlaybackCamera) return@LaunchedEffect
+        val point = playbackPoints.getOrNull(playback.currentIndex)?.position?.point ?: return@LaunchedEffect
+        cameraController.moveInstantly(point)
+    }
 
     // Sin esto la cámara se queda en la posición por defecto del SDK (vista mundial) hasta que el
     // usuario toca algo -- se ajusta una sola vez al entrar, a todos los puntos de la ruta
@@ -329,7 +352,9 @@ private fun HistoryContent(
             polylines = mapData?.polylines ?: emptyList(),
             markers = mapData?.markers ?: emptyList(),
             selectedLegIndex = selectedLegIndex,
-            onMarkerClick = onLegSelected
+            onMarkerClick = onLegSelected,
+            playbackPoint = playbackPoints.getOrNull(playback.currentIndex)?.position?.point,
+            onCameraGesture = { followPlaybackCamera = false }
         )
         HistoryTimeline(
             legs = route.legs,
@@ -338,6 +363,11 @@ private fun HistoryContent(
             onLegClick = onLegSelected,
             addresses = addresses,
             onStopRowVisible = onStopRowVisible,
+            playbackPoints = playbackPoints,
+            playback = playback,
+            onPlayPauseClick = onPlayPauseClick,
+            onScrub = onScrub,
+            onSpeedMultiplierClick = onSpeedMultiplierClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.55f)

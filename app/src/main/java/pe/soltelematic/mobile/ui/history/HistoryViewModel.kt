@@ -1,17 +1,29 @@
 package pe.soltelematic.mobile.ui.history
 
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
 import java.time.LocalDate
+
+// Paso base a 1x -- 2x/4x/8x lo dividen. A 200ms/punto un recorrido de ~200 puntos (un día
+// típico, ver RouteSimplifier/GoogleRouteMapEngine) tarda ~40s a 1x y ~5s a 8x: perceptible sin
+// ser una espera larga. No se usa el tiempo real entre HistoryPosition.time consecutivos porque
+// un corte de señal GPS entre dos puntos puede ser de varios minutos -- reproducirlo tal cual
+// dejaría el marcador "congelado" esperando ese hueco en vez de avanzar a un ritmo utilizable.
+private const val BASE_STEP_DELAY_MS = 200L
 
 /** assetId por parámetro de Koin, igual que AssetDetailViewModel -- ver ViewModelModule. */
 class HistoryViewModel(
@@ -28,9 +40,26 @@ class HistoryViewModel(
     private val addressCache = mutableMapOf<GeoPoint, String?>()
 
     private var loadJob: Job? = null
+    private var playbackJob: Job? = null
+
+    // Igual patrón que RealtimePoller (Bloque C del mapa en vivo): DefaultLifecycleObserver sobre
+    // ProcessLifecycleOwner, no Lifecycle.currentStateFlow (pide una versión de lifecycle-runtime-
+    // ktx más nueva que la que trae el proyecto). onStop cubre tanto "la app pasa a segundo plano"
+    // como "el usuario cambia a otra app" -- pausePlayback() dentro deja isPlaying=false, así que
+    // al volver el botón ya muestra "reproducir", no un ícono de pausa mintiendo sobre un job que
+    // ya no corre.
+    private val lifecycleObserver = object : DefaultLifecycleObserver {
+        override fun onStop(owner: LifecycleOwner) = pausePlayback()
+    }
 
     init {
         loadRoute()
+        ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
+    }
+
+    override fun onCleared() {
+        ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
+        playbackJob?.cancel()
     }
 
     fun onRetry() = loadRoute()
@@ -47,8 +76,75 @@ class HistoryViewModel(
 
     /** Hoy / Ayer / 7 días: rango ya resuelto, solo hace falta recargar con él. */
     fun onDateRangeSelected(range: HistoryDateRange) {
-        _uiState.update { it.copy(dateRange = range, selectedLegIndex = null, addresses = emptyMap()) }
+        pausePlayback()
+        _uiState.update {
+            it.copy(
+                dateRange = range,
+                selectedLegIndex = null,
+                addresses = emptyMap(),
+                playback = HistoryPlaybackState()
+            )
+        }
         loadRoute()
+    }
+
+    fun onPlayPauseToggled() {
+        if (_uiState.value.playback.isPlaying) pausePlayback() else startPlayback()
+    }
+
+    /** Arrastre del scrubber: salta el índice directo, sin pausar ni reanudar la reproducción. */
+    fun onScrub(index: Int) {
+        val points = _uiState.value.playbackPoints
+        if (points.isEmpty()) return
+        val clamped = index.coerceIn(0, points.lastIndex)
+        _uiState.update { it.copy(playback = it.playback.copy(currentIndex = clamped)) }
+    }
+
+    /** Chip 1x -> 2x -> 4x -> 8x -> 1x. El loop en curso relee speedMultiplier en cada paso (ver
+     * startPlayback), así que el cambio de ritmo se nota de inmediato sin reiniciar el job. */
+    fun onSpeedMultiplierCycled() {
+        _uiState.update {
+            val next = when (it.playback.speedMultiplier) {
+                1 -> 2
+                2 -> 4
+                4 -> 8
+                else -> 1
+            }
+            it.copy(playback = it.playback.copy(speedMultiplier = next))
+        }
+    }
+
+    private fun startPlayback() {
+        val points = _uiState.value.playbackPoints
+        if (points.size < 2) return
+        // Si ya llegó al final, "reproducir" vuelve a arrancar desde el principio -- igual
+        // criterio que cualquier reproductor de video/audio.
+        val startIndex = if (_uiState.value.playback.currentIndex >= points.lastIndex) 0 else _uiState.value.playback.currentIndex
+        _uiState.update { it.copy(playback = it.playback.copy(isPlaying = true, currentIndex = startIndex)) }
+        playbackJob?.cancel()
+        // El índice de avance se lee y escribe siempre en _uiState.value.playback.currentIndex
+        // (nunca una variable local del loop): así, si el usuario arrastra el scrubber (onScrub)
+        // mientras esto corre, el próximo tick continúa desde el punto arrastrado en vez de
+        // pisarlo con un valor local desactualizado.
+        playbackJob = viewModelScope.launch {
+            while (isActive) {
+                val multiplier = _uiState.value.playback.speedMultiplier
+                delay(BASE_STEP_DELAY_MS / multiplier)
+                val nextIndex = _uiState.value.playback.currentIndex + 1
+                if (nextIndex > points.lastIndex) {
+                    _uiState.update { it.copy(playback = it.playback.copy(currentIndex = points.lastIndex)) }
+                    pausePlayback()
+                    break
+                }
+                _uiState.update { it.copy(playback = it.playback.copy(currentIndex = nextIndex)) }
+            }
+        }
+    }
+
+    private fun pausePlayback() {
+        playbackJob?.cancel()
+        playbackJob = null
+        _uiState.update { it.copy(playback = it.playback.copy(isPlaying = false)) }
     }
 
     /** "Elegir": from/to crudos del selector, custom() aplica el tope de 31 días. */
@@ -82,6 +178,7 @@ class HistoryViewModel(
     }
 
     private fun loadRoute() {
+        pausePlayback() // defensivo: un reintento en vuelo no debe dejar un job corriendo contra playbackPoints de un route viejo
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -93,7 +190,12 @@ class HistoryViewModel(
             )
             when (result) {
                 is ApiResult.Success -> _uiState.update {
-                    it.copy(isLoading = false, route = result.data, mapData = result.data.toRouteMapData())
+                    it.copy(
+                        isLoading = false,
+                        route = result.data,
+                        mapData = result.data.toRouteMapData(),
+                        playbackPoints = result.data.toPlaybackPoints()
+                    )
                 }
                 is ApiResult.Error -> _uiState.update { it.copy(isLoading = false, error = result.error) }
             }
