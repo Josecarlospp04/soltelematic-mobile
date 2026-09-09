@@ -3,6 +3,7 @@ package pe.soltelematic.mobile.ui.map
 import pe.soltelematic.mobile.domain.model.Asset
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.Geofence
+import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.domain.model.UnitStat
 
 data class MapUiState(
@@ -16,6 +17,9 @@ data class MapUiState(
     val geofences: List<Geofence> = emptyList(),
     // Reflejo de UserPreferencesDataStore.showGeofences, apagado por defecto (ver MapViewModel).
     val showGeofences: Boolean = false,
+    // Reflejo de UserPreferencesDataStore.mapType, NORMAL por defecto (ver MapViewModel). Solo
+    // afecta el mapa en vivo -- el mapa del Historial (GoogleRouteMapEngine) no lo lee.
+    val mapType: MapType = MapType.NORMAL,
     // Distancia/conducción/detenido + dirección de la hoja inferior: no vienen en devices/map
     // (ver Asset), así que llegan después de abrir la hoja (device/{id} history + geocodificación,
     // mismo camino que AssetDetailViewModel) -- la hoja nunca espera a esto para mostrarse.

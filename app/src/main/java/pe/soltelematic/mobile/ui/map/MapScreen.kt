@@ -27,11 +27,15 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.LayersClear
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.ZoomOutMap
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -63,6 +67,7 @@ import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
+import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.ui.components.AssetFilterChipsRow
 import pe.soltelematic.mobile.ui.components.AssetSearchBar
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
@@ -149,7 +154,8 @@ fun MapScreen(
             geofences = uiState.visibleGeofences,
             onMarkerClick = viewModel::onAssetSelected,
             onMapClick = viewModel::onBottomSheetDismissed,
-            contentPadding = mapContentPadding
+            contentPadding = mapContentPadding,
+            mapType = uiState.mapType
         )
 
         // El mapa dibuja a pantalla completa (enableEdgeToEdge en MainActivity), pero estos
@@ -215,6 +221,11 @@ fun MapScreen(
                 icon = if (uiState.showGeofences) Icons.Filled.Layers else Icons.Filled.LayersClear,
                 contentDescription = stringResource(R.string.map_toggle_geofences),
                 active = uiState.showGeofences
+            )
+            Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
+            MapTypeFab(
+                mapType = uiState.mapType,
+                onMapTypeSelected = viewModel::onMapTypeSelected
             )
         }
     }
@@ -296,6 +307,59 @@ private fun MapFab(
     ) {
         Icon(icon, contentDescription = contentDescription)
     }
+}
+
+/**
+ * FAB + DropdownMenu anclado (no bottom sheet): con solo 4 opciones cortas, un menú anclado
+ * mantiene la relación espacial con el botón que lo abrió y no exige el chrome de una hoja
+ * inferior (scrim a pantalla completa, drag handle) -- ese componente ya existe en esta pantalla
+ * (AssetBottomSheet) para contenido más largo y desplazable, no para un picker de 4 filas.
+ */
+@Composable
+private fun MapTypeFab(mapType: MapType, onMapTypeSelected: (MapType) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        MapFab(
+            onClick = { expanded = true },
+            icon = Icons.Filled.Map,
+            contentDescription = stringResource(R.string.map_type_button_content_description),
+            active = expanded
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            MapType.entries.forEach { option ->
+                val selected = option == mapType
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = option.toLabel(),
+                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    trailingIcon = {
+                        if (selected) {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    onClick = {
+                        onMapTypeSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapType.toLabel(): String = when (this) {
+    MapType.NORMAL -> stringResource(R.string.map_type_normal)
+    MapType.SATELLITE -> stringResource(R.string.map_type_satellite)
+    MapType.HYBRID -> stringResource(R.string.map_type_hybrid)
+    MapType.TERRAIN -> stringResource(R.string.map_type_terrain)
 }
 
 // Mismo mapeo de 4 colores que SummaryTab.statusPillColors/EventCard.toColors -- se duplica acá

@@ -38,9 +38,11 @@ import kotlin.math.hypot
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.Geofence
 import pe.soltelematic.mobile.domain.model.GeofenceShape
+import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.MapEngine
 import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
+import com.google.maps.android.compose.MapType as GoogleMapType
 
 private const val GEOFENCE_STROKE_WIDTH_PX = 4f
 private const val GEOFENCE_FILL_ALPHA_ACTIVE = 0.15f
@@ -106,7 +108,8 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         geofences: List<Geofence>,
         onMarkerClick: (Int) -> Unit,
         onMapClick: () -> Unit,
-        contentPadding: PaddingValues
+        contentPadding: PaddingValues,
+        mapType: MapType
     ) {
         // Casteo seguro: el único MapCameraController que existe hoy es el que devuelve
         // rememberCameraController() de esta misma clase.
@@ -142,7 +145,7 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
             cameraPositionState = googleController.cameraPositionState,
             // myLocationEnabled solo debe llegar en true cuando quien llama ya confirmó el
             // permiso ACCESS_FINE_LOCATION; si no, el SDK de Google Maps lanza SecurityException.
-            properties = MapProperties(isMyLocationEnabled = myLocationEnabled),
+            properties = MapProperties(isMyLocationEnabled = myLocationEnabled, mapType = mapType.toGoogleMapType()),
             uiSettings = MapUiSettings(myLocationButtonEnabled = false, zoomControlsEnabled = false),
             // No es solo estético: el SDK usa este padding también para calcular el bounding box
             // visible en newLatLngBounds (ver GoogleMapCameraController.fitAll), así que un
@@ -284,6 +287,13 @@ private fun GeofenceShape.approxFootprintMeters(): Double = when (this) {
 }
 
 private fun GeoPoint.toLatLng(): LatLng = LatLng(lat, lng)
+
+private fun MapType.toGoogleMapType(): GoogleMapType = when (this) {
+    MapType.NORMAL -> GoogleMapType.NORMAL
+    MapType.SATELLITE -> GoogleMapType.SATELLITE
+    MapType.HYBRID -> GoogleMapType.HYBRID
+    MapType.TERRAIN -> GoogleMapType.TERRAIN
+}
 
 private fun String.toGeofenceColor(alpha: Float): Color {
     val argb = runCatching { AndroidColor.parseColor(this) }

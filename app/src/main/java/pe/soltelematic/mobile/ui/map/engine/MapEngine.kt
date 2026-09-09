@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import pe.soltelematic.mobile.domain.model.Geofence
 import pe.soltelematic.mobile.domain.model.GeoPoint
+import pe.soltelematic.mobile.domain.model.MapType
 
 /**
  * Vista mínima de un Asset para el motor de mapas. Deliberadamente no lleva velocidad,
@@ -71,6 +72,9 @@ interface MapEngine {
         // Espacio real ocupado por los overlays de MapScreen (barra de búsqueda + chips arriba,
         // columna de FABs a la derecha), medido en runtime, no un margen fijo. El motor lo usa
         // para que ni sus controles propios ni el encuadre (fitAll) queden debajo de esos overlays.
-        contentPadding: PaddingValues
+        contentPadding: PaddingValues,
+        // NORMAL por defecto (ver MapUiState). El SDK concreto (GoogleMapEngine) lo traduce a su
+        // propio enum de tipo de mapa -- este contrato no nombra Google Maps.
+        mapType: MapType
     )
 }

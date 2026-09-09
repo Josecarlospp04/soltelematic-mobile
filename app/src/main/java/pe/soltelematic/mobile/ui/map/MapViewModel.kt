@@ -19,6 +19,7 @@ import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
+import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
 import pe.soltelematic.mobile.domain.repository.AssetRepository
 import pe.soltelematic.mobile.domain.repository.GeofencesRepository
@@ -87,6 +88,11 @@ class MapViewModel(
                 if (enabled) loadGeofencesIfNeeded()
             }
         }
+        viewModelScope.launch {
+            userPreferences.mapType.collect { type ->
+                _uiState.update { it.copy(mapType = type) }
+            }
+        }
         refresh()
         // Bloque C: devices/map (arriba) para la carga inicial, polling para lo que sigue. El
         // socket queda registrado pero SOCKET_REALTIME_ENABLED lo apaga -- start() no hace nada
@@ -103,6 +109,12 @@ class MapViewModel(
     fun onToggleGeofencesVisibility() {
         viewModelScope.launch {
             userPreferences.setShowGeofences(!_uiState.value.showGeofences)
+        }
+    }
+
+    fun onMapTypeSelected(type: MapType) {
+        viewModelScope.launch {
+            userPreferences.setMapType(type)
         }
     }
 
