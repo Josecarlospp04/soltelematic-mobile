@@ -4,16 +4,16 @@
    for details.
 -->
 <data-extraction-rules>
-    <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
-    </cloud-backup>
     <!--
-    <device-transfer>
-        <include .../>
-        <exclude .../>
-    </device-transfer>
+    soltelematic_secure_prefs.xml es EncryptedSharedPreferences: sus valores están cifrados con la
+    llave maestra del Android Keystore, que NUNCA se incluye en el backup ni en la transferencia
+    de dispositivo. Restaurar ese archivo sin su llave deja el store indescifrable para siempre
+    (ver SecureTokenStorage.createPrefs), así que se excluye para que nunca llegue a restaurarse.
     -->
+    <cloud-backup>
+        <exclude domain="sharedpref" path="soltelematic_secure_prefs.xml"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="soltelematic_secure_prefs.xml"/>
+    </device-transfer>
 </data-extraction-rules>

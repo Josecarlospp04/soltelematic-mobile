@@ -7,7 +7,8 @@
 -->
 <full-backup-content>
     <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    Mismo motivo que data_extraction_rules.xml (API 31+): la llave del Keystore que descifra este
+    archivo nunca viaja con el backup, y restaurarlo sin ella deja el store indescifrable para siempre.
+    -->
+    <exclude domain="sharedpref" path="soltelematic_secure_prefs.xml"/>
 </full-backup-content>
