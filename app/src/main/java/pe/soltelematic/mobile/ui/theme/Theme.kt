@@ -46,6 +46,14 @@ data class BrandConfig(
 private const val DefaultBrandName = "SOLTELEMATIC"
 
 /**
+ * Número de soporte por WhatsApp de SOLTELEMATIC (blanco-etiquetable), en el formato que espera
+ * el enlace https://wa.me/<numero> -- sin '+' ni espacios. Vive junto al resto de los valores por
+ * defecto de marca porque hoy no hay fetch real de BrandConfig (ver comentario de la data class):
+ * cuando lo haya, este campo debería sumarse a ese contrato y dejar de ser una constante local.
+ */
+const val DefaultBrandSupportWhatsAppNumber = "51951156594"
+
+/**
  * Tema raíz de SOLTELEMATIC Mobile con soporte white-label.
  *
  * Se re-tematiza con [brand]: accent y sus derivados (onAccent/accentWash/accentText), logo,
