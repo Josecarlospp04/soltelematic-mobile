@@ -146,6 +146,19 @@ class GoogleRouteMapEngine : RouteMapEngine {
             }
         }
 
+        // remember(polylines, selectedLegIndex), NO dentro del content lambda de GoogleMap: ese
+        // lambda es un solo scope de recomposición, y playbackPoint (más abajo, para el marcador
+        // de reproducción) cambia varias veces por segundo durante la reproducción. Sin este
+        // remember, cada actualización del marcador volvía a correr Douglas-Peucker
+        // (toRenderablePolylineRuns) sobre TODO el recorrido -- el costo real detrás del jank
+        // medido a velocidades altas, no la cámara ni el propio marcador.
+        val selectedPolyline = remember(polylines, selectedLegIndex) {
+            polylines.firstOrNull { it.legIndex == selectedLegIndex }
+        }
+        val renderableRuns = remember(polylines, selectedLegIndex) {
+            polylines.filter { it.legIndex != selectedLegIndex }.toRenderablePolylineRuns()
+        }
+
         GoogleMap(
             modifier = modifier,
             cameraPositionState = googleController.cameraPositionState,
@@ -154,7 +167,7 @@ class GoogleRouteMapEngine : RouteMapEngine {
             // Tramo seleccionado aparte, siempre a fidelidad completa (nunca pasa por el
             // presupuesto de puntos ni por simplify): es un solo Polyline, no miles, así que no
             // hay riesgo de memoria, y "resaltar el tramo completo" pierde sentido si se recorta.
-            polylines.firstOrNull { it.legIndex == selectedLegIndex }?.let { selected ->
+            selectedPolyline?.let { selected ->
                 Polyline(
                     points = selected.points.map { it.point.toLatLng() },
                     color = MaterialTheme.colorScheme.primary,
@@ -166,16 +179,14 @@ class GoogleRouteMapEngine : RouteMapEngine {
 
             // El resto del recorrido sí pasa por el presupuesto de puntos + simplify -- acá es
             // donde vivían los miles de Polyline que crasheaban la app.
-            polylines.filter { it.legIndex != selectedLegIndex }
-                .toRenderablePolylineRuns()
-                .forEach { (colorHex, points) ->
-                    Polyline(
-                        points = points,
-                        color = (colorHex ?: DEFAULT_POLYLINE_COLOR).toComposeColor(),
-                        width = POLYLINE_WIDTH_PX,
-                        clickable = false
-                    )
-                }
+            renderableRuns.forEach { (colorHex, points) ->
+                Polyline(
+                    points = points,
+                    color = (colorHex ?: DEFAULT_POLYLINE_COLOR).toComposeColor(),
+                    width = POLYLINE_WIDTH_PX,
+                    clickable = false
+                )
+            }
 
             markers.forEach { marker ->
                 val isSelected = marker.legIndex == selectedLegIndex

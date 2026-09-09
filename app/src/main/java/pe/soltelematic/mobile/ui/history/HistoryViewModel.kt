@@ -1,10 +1,12 @@
 package pe.soltelematic.mobile.ui.history
 
+import android.os.SystemClock
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +27,14 @@ import java.time.LocalDate
 // dejaría el marcador "congelado" esperando ese hueco en vez de avanzar a un ritmo utilizable.
 private const val BASE_STEP_DELAY_MS = 200L
 
+// Tasa MÁXIMA a la que el marcador/cámara/textos se actualizan de forma visible, desacoplada del
+// ritmo real de avance (BASE_STEP_DELAY_MS/multiplicador). A 8x el avance real es cada ~25ms
+// (40Hz) -- nadie percibe puntos individuales a esa velocidad, y pedirle a Compose que recomponga
+// la barra + mueva la cámara 40 veces por segundo es lo que medimos como jank severo (ver
+// investigación previa). internalPlaybackIndex de abajo sigue avanzando al ritmo real sin pasar
+// por _uiState en cada vuelta -- este cap solo limita cuánto de eso se vuelve visible.
+private const val VISUAL_UPDATE_INTERVAL_MS = 1000L / 30 // ~33ms, 30Hz
+
 /** assetId por parámetro de Koin, igual que AssetDetailViewModel -- ver ViewModelModule. */
 class HistoryViewModel(
     private val assetId: Int,
@@ -41,6 +51,17 @@ class HistoryViewModel(
 
     private var loadJob: Job? = null
     private var playbackJob: Job? = null
+
+    // Fuente de verdad del avance real durante la reproducción -- vive fuera de _uiState a
+    // propósito, así startPlayback() puede incrementarlo cada BASE_STEP_DELAY_MS/multiplicador
+    // sin que cada incremento dispare una recomposición. onScrub() también lo escribe, para que
+    // el loop en curso continúe desde el punto arrastrado en vez de pisarlo en el siguiente tick.
+    // @Volatile: el loop corre en Dispatchers.Default (ver startPlayback) mientras onScrub()
+    // escribe desde el hilo principal -- sin esto, el hilo del loop podría tardar en ver el
+    // arrastre.
+    @Volatile
+    private var internalPlaybackIndex = 0
+    private var lastVisualEmitAtMs = 0L
 
     // Igual patrón que RealtimePoller (Bloque C del mapa en vivo): DefaultLifecycleObserver sobre
     // ProcessLifecycleOwner, no Lifecycle.currentStateFlow (pide una versión de lifecycle-runtime-
@@ -97,6 +118,9 @@ class HistoryViewModel(
         val points = _uiState.value.playbackPoints
         if (points.isEmpty()) return
         val clamped = index.coerceIn(0, points.lastIndex)
+        // Si el loop de startPlayback sigue corriendo, debe continuar desde acá en su próximo
+        // tick, no desde el valor viejo que tenía antes del arrastre.
+        internalPlaybackIndex = clamped
         _uiState.update { it.copy(playback = it.playback.copy(currentIndex = clamped)) }
     }
 
@@ -120,31 +144,59 @@ class HistoryViewModel(
         // Si ya llegó al final, "reproducir" vuelve a arrancar desde el principio -- igual
         // criterio que cualquier reproductor de video/audio.
         val startIndex = if (_uiState.value.playback.currentIndex >= points.lastIndex) 0 else _uiState.value.playback.currentIndex
+        internalPlaybackIndex = startIndex
         _uiState.update { it.copy(playback = it.playback.copy(isPlaying = true, currentIndex = startIndex)) }
         playbackJob?.cancel()
-        // El índice de avance se lee y escribe siempre en _uiState.value.playback.currentIndex
-        // (nunca una variable local del loop): así, si el usuario arrastra el scrubber (onScrub)
-        // mientras esto corre, el próximo tick continúa desde el punto arrastrado en vez de
-        // pisarlo con un valor local desactualizado.
-        playbackJob = viewModelScope.launch {
+        // Dispatchers.Default, no el Main.immediate por defecto de viewModelScope: delay() sobre
+        // Main se posterga detrás del trabajo de Compose/Choreographer del hilo principal --
+        // medido en dispositivo, un delay(25) pedido ahí tardaba ~53ms reales en dispararse. En
+        // Default (pool de hilos, sin Handler ni Choreographer de por medio) el avance real sí se
+        // acerca al multiplicador pedido. _uiState.update es seguro de escribir desde acá --
+        // MutableStateFlow no está atado a ningún hilo en particular.
+        playbackJob = viewModelScope.launch(Dispatchers.Default) {
+            lastVisualEmitAtMs = SystemClock.elapsedRealtime()
             while (isActive) {
                 val multiplier = _uiState.value.playback.speedMultiplier
                 delay(BASE_STEP_DELAY_MS / multiplier)
-                val nextIndex = _uiState.value.playback.currentIndex + 1
-                if (nextIndex > points.lastIndex) {
-                    _uiState.update { it.copy(playback = it.playback.copy(currentIndex = points.lastIndex)) }
+                internalPlaybackIndex++
+                if (internalPlaybackIndex > points.lastIndex) {
+                    // Acotar ANTES de pausar: pausePlayback() sincroniza currentIndex con
+                    // internalPlaybackIndex tal cual esté (ver más abajo), así que si se dejara en
+                    // lastIndex+1 acá, el contador final mostraría "353/352" en vez de "352/352".
+                    internalPlaybackIndex = points.lastIndex
                     pausePlayback()
                     break
                 }
-                _uiState.update { it.copy(playback = it.playback.copy(currentIndex = nextIndex)) }
+                // Desacoplado a propósito (ver VISUAL_UPDATE_INTERVAL_MS): el avance de acá arriba
+                // ya corrió al ritmo real sin esperar esto. A velocidades altas varios incrementos
+                // de internalPlaybackIndex caen en la misma ventana de 33ms y se saltan sin emitir
+                // -- el próximo flush muestra directo el punto más reciente, no cada uno.
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastVisualEmitAtMs >= VISUAL_UPDATE_INTERVAL_MS) {
+                    lastVisualEmitAtMs = now
+                    emitVisualIndex(internalPlaybackIndex)
+                }
             }
         }
+    }
+
+    private fun emitVisualIndex(index: Int) {
+        _uiState.update { it.copy(playback = it.playback.copy(currentIndex = index)) }
     }
 
     private fun pausePlayback() {
         playbackJob?.cancel()
         playbackJob = null
-        _uiState.update { it.copy(playback = it.playback.copy(isPlaying = false)) }
+        _uiState.update {
+            if (!it.playback.isPlaying) {
+                it
+            } else {
+                // Sincroniza con el avance real: el último valor mostrado puede estar hasta
+                // VISUAL_UPDATE_INTERVAL_MS atrás del internalPlaybackIndex real -- al pausar sí
+                // importa mostrar el punto exacto, ya no hay más ticks por venir que lo corrijan.
+                it.copy(playback = it.playback.copy(isPlaying = false, currentIndex = internalPlaybackIndex))
+            }
+        }
     }
 
     /** "Elegir": from/to crudos del selector, custom() aplica el tope de 31 días. */

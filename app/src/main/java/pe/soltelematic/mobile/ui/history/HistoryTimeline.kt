@@ -325,13 +325,18 @@ private fun HistoryPlaybackBar(
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)) {
                 PlaybackPlayPauseButton(isPlaying = isPlaying, onClick = onPlayPauseClick)
-                // steps para que el thumb solo pare en índices enteros de playbackPoints -- onScrub
-                // ya redondea, pero esto además da feedback táctil/visual de "salto a salto".
+                // Sin `steps`: con 200+ puntos, SliderState guarda un tickFraction por paso y
+                // SliderDefaults.Track vuelve a agrupar/dibujar TODOS esos puntos en su Canvas en
+                // cada recomposición -- con currentIndex cambiando hasta 30 veces por segundo
+                // durante la reproducción, eso resultó ser el costo real detrás del jank medido a
+                // velocidades altas (no la cámara ni el marcador, ver investigación). onScrub ya
+                // redondea a entero, así que el efecto de "saltar a cualquier punto" es el mismo
+                // sin pagar el dibujo de marcas -- a esta densidad de puntos tampoco se notaría el
+                // "snap" visual entre uno y otro.
                 Slider(
                     value = pointIndex.toFloat(),
                     onValueChange = { onScrub(it.roundToInt()) },
                     valueRange = 0f..(totalPoints - 1).toFloat(),
-                    steps = (totalPoints - 2).coerceAtLeast(0),
                     colors = SliderDefaults.colors(
                         thumbColor = MaterialTheme.colorScheme.primary,
                         activeTrackColor = MaterialTheme.colorScheme.primary,
