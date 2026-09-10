@@ -32,6 +32,7 @@ import com.google.maps.android.compose.MapEffect
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Polygon
+import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -39,6 +40,7 @@ import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.Geofence
 import pe.soltelematic.mobile.domain.model.GeofenceShape
 import pe.soltelematic.mobile.domain.model.MapType
+import pe.soltelematic.mobile.ui.map.engine.GeofenceDraftPreview
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.MapEngine
 import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
@@ -51,6 +53,11 @@ private const val GEOFENCE_STROKE_ALPHA_ACTIVE = 1f
 private const val GEOFENCE_STROKE_ALPHA_INACTIVE = 0.6f
 private const val FALLBACK_GEOFENCE_COLOR = "#9E9E9E" // mismo gris neutro que MarkerIconCache
 private val INACTIVE_GEOFENCE_STROKE_PATTERN: List<PatternItem> = listOf(Dash(20f), Gap(12f))
+
+// Radio del punto que marca cada vértice/centro durante el dibujo de una geocerca -- ver
+// GeofenceDraftPreview.Draw. No clicable (mismo criterio que Geofence.Draw): un punto tapando el
+// toque siguiente rompería el flujo de "cada tap agrega un vértice".
+private const val DRAFT_VERTEX_RADIUS_METERS = 3.0
 
 // Metros por grado de latitud, constante en toda la Tierra (a diferencia de longitud, que
 // depende de la latitud -- ver approxFootprintMeters). Suficiente para una estimación de tamaño,
@@ -107,9 +114,10 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         myLocationEnabled: Boolean,
         geofences: List<Geofence>,
         onMarkerClick: (Int) -> Unit,
-        onMapClick: () -> Unit,
+        onMapClick: (GeoPoint) -> Unit,
         contentPadding: PaddingValues,
-        mapType: MapType
+        mapType: MapType,
+        draft: GeofenceDraftPreview?
     ) {
         // Casteo seguro: el único MapCameraController que existe hoy es el que devuelve
         // rememberCameraController() de esta misma clase.
@@ -125,6 +133,7 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         // recomposición de Content -- MapEffect(markers) de abajo los usa cada vez que corre.
         val pillSurfaceArgb = MaterialTheme.colorScheme.surface.toArgb()
         val pillInkArgb = MaterialTheme.colorScheme.onSurface.toArgb()
+        val draftPreviewColor = MaterialTheme.colorScheme.primary
 
         // contentPadding solo trae lo que MapScreen puede medir (barra+chips arriba, columna de
         // FABs a la derecha, ver MapScreen.kt) -- abajo hace falta sumar lo que le corresponde
@@ -151,7 +160,7 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
             // visible en newLatLngBounds (ver GoogleMapCameraController.fitAll), así que un
             // encuadre automático ya no deja marcadores debajo de la barra de búsqueda/chips/FABs.
             contentPadding = effectiveContentPadding,
-            onMapClick = { onMapClick() }
+            onMapClick = { latLng -> onMapClick(latLng.toGeoPoint()) }
         ) {
             // Los marcadores de unidad se dibujan siempre por encima de los overlays de suelo
             // (polígonos, círculos) sin importar el zIndex -- son capas distintas en el SDK de
@@ -160,6 +169,8 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
             geofences.forEach { geofence ->
                 geofence.Draw()
             }
+
+            draft?.Draw(previewColor = draftPreviewColor)
 
             // Se dispara con cada refresco de Room (nueva lista de markers), nunca con cada
             // movimiento de cámara -- eso lo cubre el listener debounced de abajo, creado una
@@ -271,6 +282,57 @@ private fun Geofence.Draw() {
 }
 
 /**
+ * Vista previa de la geocerca en construcción (ver MapScreen). Color fijo (previewColor, el color
+ * real se elige recién en el formulario final) y siempre por encima de las geocercas reales (sin
+ * zIndex negativo) -- es lo que el usuario está tocando en este momento. Puntos no clicables, ver
+ * DRAFT_VERTEX_RADIUS_METERS.
+ */
+@Composable
+@GoogleMapComposable
+private fun GeofenceDraftPreview.Draw(previewColor: Color) {
+    when (this) {
+        is GeofenceDraftPreview.Polygon -> {
+            vertices.forEach { vertex ->
+                Circle(
+                    center = vertex.toLatLng(),
+                    radius = DRAFT_VERTEX_RADIUS_METERS,
+                    clickable = false,
+                    fillColor = previewColor,
+                    strokeColor = previewColor
+                )
+            }
+            if (vertices.size >= 2) {
+                Polyline(
+                    points = vertices.map { it.toLatLng() },
+                    clickable = false,
+                    color = previewColor,
+                    width = GEOFENCE_STROKE_WIDTH_PX
+                )
+            }
+        }
+        is GeofenceDraftPreview.Circle -> {
+            center?.let { point ->
+                Circle(
+                    center = point.toLatLng(),
+                    radius = radiusMeters,
+                    clickable = false,
+                    fillColor = previewColor.copy(alpha = GEOFENCE_FILL_ALPHA_ACTIVE),
+                    strokeColor = previewColor,
+                    strokeWidth = GEOFENCE_STROKE_WIDTH_PX
+                )
+                Circle(
+                    center = point.toLatLng(),
+                    radius = DRAFT_VERTEX_RADIUS_METERS,
+                    clickable = false,
+                    fillColor = previewColor,
+                    strokeColor = previewColor
+                )
+            }
+        }
+    }
+}
+
+/**
  * Estimación de tamaño en metros, NO geometría real -- solo para ordenar zIndex (ver Draw()).
  * Circle ya trae su radio; Polygon usa la diagonal de su bounding box / 2, con longitud corregida
  * por coseno de la latitud (un grado de longitud encoge hacia los polos, uno de latitud no).
@@ -287,6 +349,8 @@ private fun GeofenceShape.approxFootprintMeters(): Double = when (this) {
 }
 
 private fun GeoPoint.toLatLng(): LatLng = LatLng(lat, lng)
+
+private fun LatLng.toGeoPoint(): GeoPoint = GeoPoint(latitude, longitude)
 
 private fun MapType.toGoogleMapType(): GoogleMapType = when (this) {
     MapType.NORMAL -> GoogleMapType.NORMAL
