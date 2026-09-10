@@ -11,27 +11,38 @@ de alcance.
 
 ### Request — `POST geofences`, `@FormUrlEncoded`
 
-Confirmado con una geocerca real de tipo circle (id 6, ver Verificación). Notación de corchetes
-(`center[lat]`, `center[lng]`) funciona tal cual la decodifica PHP de forma nativa — **no hace
-falta `@Body` JSON**, se mantiene la misma convención que el resto de POSTs del proyecto
-(`token`, `refresh`, `commands`).
+Confirmado con dos geocercas reales, una de cada tipo (id 6 circle, id 7 polygon). Notación de
+corchetes (`center[lat]`, `center[lng]`, `polygon[i][lat]`, `polygon[i][lng]`) funciona tal cual la
+decodifica PHP de forma nativa, índice de array incluido — **no hace falta `@Body` JSON**, se
+mantiene la misma convención que el resto de POSTs del proyecto (`token`, `refresh`, `commands`).
 
 | Campo | Regla | Formato de envío |
 |---|---|---|
 | `name` | requerido, string | `name=...` |
 | `type` | requerido, `"polygon"` \| `"circle"` | `type=...` |
 | `polygon_color` | requerido, exactamente 7 caracteres `#RRGGBB` | `polygon_color=%23...` |
-| `polygon` | requerido si `type=polygon` | `polygon[0][lat]=...&polygon[0][lng]=...&polygon[1][lat]=...` (confirmado con `center[lat]/lng`; pendiente de una verificación puntual con el índice de array antes de escribir el mapper, ver Verificación) |
-| `center` | requerido si `type=circle` | `center[lat]=...&center[lng]=...` |
+| `polygon` | requerido si `type=polygon` | `polygon[0][lat]=...&polygon[0][lng]=...&polygon[1][lat]=...` (confirmado, id 7) |
+| `center` | requerido si `type=circle` | `center[lat]=...&center[lng]=...` (confirmado, id 6) |
 | `radius` | requerido si `type=circle`, numérico (metros) | `radius=...` |
 | `speed_limit` | opcional, numérico | `speed_limit=...` (campo plano, mismo tratamiento que `name`/`type`) |
 | `group_id` | opcional | **omitido** (fuera de alcance, ver Consideraciones del pedido original) |
 
-### Response — confirmada con la geocerca real (id 6, circle)
+### Response — confirmada con ambas geocercas reales
 
+Circle (id 6):
 ```json
 {"status":1,"data":{"id":6,"group_id":0,"name":"PRUEBA APP - BORRAR","active":true,"color":"#2196F3","type":"circle","coordinates":null,"radius":100,"center":{"lat":-14.5,"lng":-80.5}}}
 ```
+
+Polygon (id 7) — `coordinates` poblado en el mismo orden enviado, `radius`/`center` null (inverso
+al circle, donde `coordinates` es null):
+```json
+{"status":1,"data":{"id":7,"group_id":0,"name":"PRUEBA APP POLIGONO - BORRAR","active":true,"color":"#9C27B0","type":"polygon","coordinates":[{"lat":-14.5,"lng":-80.5},{"lat":-14.6,"lng":-80.5},{"lat":-14.6,"lng":-80.6}],"radius":null,"center":null}}
+```
+
+`lat`/`lng` vuelven como número (no string, a diferencia de otros endpoints como `devices/map`) —
+ya es el comportamiento que `GeofencePointDto` asume (ver su doc comment), así que no hace falta
+ningún ajuste ahí, solo tenerlo presente si se toca ese DTO más adelante.
 
 `data` tiene EXACTAMENTE la misma forma que cada elemento de `GET geofences/map` (mismo
 `GeofenceDto` ya verificado y usado por `GeofenceMapper.toDomain()`) — se reutiliza sin
@@ -51,13 +62,6 @@ No se unifican — cada DTO (request/response) usa el nombre que le corresponde 
 `speed_limit` no vuelve en la respuesta (no está en `GeofenceDto`) y el dominio no lo necesita:
 el pedido original no pide mostrarlo en ningún lado, solo enviarlo al crear. No se agrega a
 `Geofence` ni a `GeofenceDto`.
-
-## Verificación pendiente antes de escribir el mapper de request
-
-Falta confirmar `polygon[i][lat]/lng` con índice de array (ya se confirmó el mecanismo de
-corchetes con `center[lat]/lng`, que es el mismo parseo de PHP, pero se verifica también el caso
-con índice antes de escribir `GeofenceCreateRequest.toFormParams()`, seteando radius mínimo). Si
-el resultado difiere de lo esperado, esta sección se corrige antes de tocar código — no después.
 
 ## Entrada al flujo
 
@@ -270,13 +274,17 @@ caso, a diferencia del login).
 - `group_id`.
 - Mostrar `speed_limit` en algún lado de la UI (solo se envía al crear).
 
-## Plan de verificación / implementación
+## Verificación realizada
 
-1. **Antes de escribir cualquier DTO/API de request**: confirmar `polygon[i][lat]/lng` con el
-   curl de polígono (pendiente al momento de escribir este documento). Ajustar esta sección si el
-   resultado difiere.
-2. Compilar y probar el flujo completo en dispositivo: ambos tipos de forma, deshacer, cancelar,
-   validaciones locales (nombre vacío, guardar deshabilitado), errores de campo simulados.
-3. La geocerca de prueba (id 6, y la de polígono si se crea) ya está identificada como
-   `"PRUEBA APP - BORRAR"` para que el usuario las borre desde la web — no se crean geocercas de
-   prueba adicionales sin avisar primero, y ninguna se crea cerca de zonas donde opera la flota.
+Contrato de request y response confirmado contra el servidor real para ambos tipos de forma
+(circle id 6, polygon id 7) antes de escribir ningún DTO/API de request — no hay nada deducido del
+código ni pendiente de confirmar. Ambas geocercas quedan identificadas como
+`"PRUEBA APP - BORRAR"` / `"PRUEBA APP POLIGONO - BORRAR"` para que el usuario las borre desde la
+web; no se crean geocercas de prueba adicionales sin avisar primero, y ninguna se creó cerca de
+zonas donde opera la flota.
+
+## Plan de implementación
+
+Compilar y probar el flujo completo en dispositivo: ambos tipos de forma, deshacer, cancelar,
+validaciones locales (nombre vacío, guardar deshabilitado), errores de campo simulados (422). El
+detalle de pasos vive en el plan de implementación (`writing-plans`), no en este documento.
