@@ -2,6 +2,7 @@ package pe.soltelematic.mobile.ui.map
 
 import pe.soltelematic.mobile.domain.model.Asset
 import pe.soltelematic.mobile.domain.model.AssetFilter
+import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.Geofence
 import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.domain.model.UnitStat
@@ -26,7 +27,9 @@ data class MapUiState(
     val isSelectedAssetStatsLoading: Boolean = false,
     val selectedAssetStats: List<UnitStat> = emptyList(),
     val isSelectedAssetAddressLoading: Boolean = false,
-    val selectedAssetAddress: String? = null
+    val selectedAssetAddress: String? = null,
+    // null = mapa normal, fuera de modo dibujo. Ver GeofenceCreationState.
+    val geofenceCreation: GeofenceCreationState? = null
 ) {
     val visibleAssets: List<Asset>
         get() = assets
@@ -40,4 +43,42 @@ data class MapUiState(
 
     val visibleGeofences: List<Geofence>
         get() = if (showGeofences) geofences else emptyList()
+}
+
+enum class GeofenceDrawType { POLYGON, CIRCLE }
+
+/**
+ * Estilo plano (como AssetDetailUiState), no una jerarquía sellada: el borrador se actualiza
+ * incrementalmente con cada tap/cambio de slider, y copy() sobre campos planos es más simple que
+ * reconstruir un sealed type en cada paso.
+ */
+data class GeofenceCreationState(
+    val type: GeofenceDrawType? = null,
+    val polygonVertices: List<GeoPoint> = emptyList(),
+    val circleCenter: GeoPoint? = null,
+    val circleRadiusMeters: Double = GeofenceRadiusRange.DEFAULT_METERS,
+    val showForm: Boolean = false,
+    val name: String = "",
+    val colorHex: String = GeofenceColorPalette.default,
+    val speedLimitInput: String = "",
+    val isSaving: Boolean = false,
+    val fieldErrors: Map<String, List<String>> = emptyMap(),
+    val hasGeneralError: Boolean = false
+) {
+    val canConfirmShape: Boolean
+        get() = when (type) {
+            GeofenceDrawType.POLYGON -> polygonVertices.size >= 3
+            GeofenceDrawType.CIRCLE -> circleCenter != null && circleRadiusMeters > 0
+            null -> false
+        }
+}
+
+/**
+ * Resultado de guardar, para mostrar una sola vez (Snackbar en MapScreen) -- mismo patrón que
+ * CommandResultEvent en AssetDetailUiState. Los errores de campo (422) NO viajan acá: viven en
+ * GeofenceCreationState.fieldErrors, persistentes, para el formulario.
+ */
+sealed class GeofenceCreateEvent {
+    data object Success : GeofenceCreateEvent()
+    data object GeneralError : GeofenceCreateEvent()
 }
