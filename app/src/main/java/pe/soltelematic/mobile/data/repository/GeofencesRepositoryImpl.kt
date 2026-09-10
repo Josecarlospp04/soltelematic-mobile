@@ -1,11 +1,14 @@
 package pe.soltelematic.mobile.data.repository
 
 import pe.soltelematic.mobile.core.network.ApiCallExecutor
+import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.data.mapper.toDomain
+import pe.soltelematic.mobile.data.mapper.toFormParams
 import pe.soltelematic.mobile.data.remote.api.GeofencesApi
 import pe.soltelematic.mobile.data.remote.dto.GeofenceDto
 import pe.soltelematic.mobile.domain.model.Geofence
+import pe.soltelematic.mobile.domain.model.GeofenceCreateRequest
 import pe.soltelematic.mobile.domain.repository.GeofencesRepository
 
 class GeofencesRepositoryImpl(
@@ -29,4 +32,12 @@ class GeofencesRepositoryImpl(
 
         return ApiResult.Success(allDtos.mapNotNull { it.toDomain() })
     }
+
+    override suspend fun createGeofence(request: GeofenceCreateRequest): ApiResult<Geofence> =
+        when (val result = apiCallExecutor.execute { api.createGeofence(request.toFormParams()) }) {
+            is ApiResult.Success -> result.data.data?.toDomain()
+                ?.let { ApiResult.Success(it) }
+                ?: ApiResult.Error(ApiError.Unknown("Respuesta de creación de geocerca incompleta"))
+            is ApiResult.Error -> result
+        }
 }
