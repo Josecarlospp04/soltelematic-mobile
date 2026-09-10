@@ -1,13 +1,19 @@
 package pe.soltelematic.mobile.ui.assetdetail
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ChevronRight
@@ -40,6 +46,17 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 /**
  * Compartir: deshabilitado, sin destino todavía (sprint futuro). Historial ya navega a
  * ui/history/HistoryScreen (Sprint 2B). Comandos ya no es un gate -- ver CommandsSection.
+ *
+ * Este footer vive en el bottomBar del Scaffold de AssetDetailScreen -- Scaffold NO le agrega
+ * ningún inset por su cuenta cuando hay topBar/bottomBar (da por hecho que cada uno se encarga del
+ * suyo, ver doc de Scaffold), así que, igual que AppBottomBar (NavigationBar de Material3, ya
+ * resuelve esto solo) y que los overlays de MapScreen.kt (Bloque de rediseño del mapa, mismo
+ * criterio con windowInsetsPadding + WindowInsets.safeDrawing.only), este Composable se encarga de
+ * su propio inset inferior en vez de asumir que alguien más lo hace. El background surface va
+ * ANTES del windowInsetsPadding a propósito: pinta hasta el borde real de la pantalla (incluida la
+ * franja bajo la barra del sistema), mientras el padding empuja el contenido lejos de ella --
+ * sin esto la barra del sistema (transparente en edge-to-edge, ver MainActivity) se ve flotando
+ * sobre el contenido en vez de sobre un fondo sólido.
  */
 @Composable
 fun DetailActionsFooter(
@@ -53,6 +70,8 @@ fun DetailActionsFooter(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
             .padding(SoltelematicSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.md)
     ) {
