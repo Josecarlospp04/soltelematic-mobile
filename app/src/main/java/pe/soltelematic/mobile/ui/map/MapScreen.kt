@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -70,6 +71,7 @@ import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.ui.components.AssetFilterChipsRow
 import pe.soltelematic.mobile.ui.components.AssetSearchBar
+import pe.soltelematic.mobile.ui.map.engine.GeofenceDraftPreview
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.MapEngine
 import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
@@ -101,11 +103,20 @@ fun MapScreen(
         viewModel.autoFitCamera.collect { positions -> cameraController.fitAll(positions) }
     }
 
-    // Alto real de la barra de búsqueda + chips y ancho real de la columna de FABs, medidos con
-    // onSizeChanged (no una constante a ojo): ambos ya incluyen su propio windowInsetsPadding +
-    // padding(16.dp) de abajo, así que las safe insets quedan cubiertas sin duplicar ese cálculo.
-    // Se le pasan a mapEngine.Content como contentPadding para que ni los controles del SDK ni el
-    // encuadre (fitAll) dejen marcadores debajo de esos overlays.
+    // Cancela el modo dibujo en vez de salir de la pantalla. No hace falta lógica adicional para
+    // cuando el formulario está abierto: ModalBottomSheet ya consume el back para cerrarse
+    // mientras está visible (ver CreateGeofenceFormSheet), así que este handler solo se alcanza
+    // cuando no hay ninguna hoja tapándolo.
+    BackHandler(enabled = uiState.geofenceCreation != null) {
+        viewModel.onCancelGeofenceCreation()
+    }
+
+    // Alto real de la barra de búsqueda + chips (o del toolbar de dibujo, ver más abajo) y ancho
+    // real de la columna de FABs, medidos con onSizeChanged (no una constante a ojo): ambos ya
+    // incluyen su propio windowInsetsPadding + padding(16.dp) de abajo, así que las safe insets
+    // quedan cubiertas sin duplicar ese cálculo. Se le pasan a mapEngine.Content como
+    // contentPadding para que ni los controles del SDK ni el encuadre (fitAll) dejen marcadores
+    // debajo de esos overlays.
     var topOverlayHeightPx by remember { mutableIntStateOf(0) }
     var fabColumnWidthPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -144,18 +155,37 @@ fun MapScreen(
         AssetFilter.entries.associateWith { filter -> uiState.assets.count(filter::matches) }
     }
 
+    val geofenceCreation = uiState.geofenceCreation
+    val isDrawingGeofence = geofenceCreation != null
+
     Box(modifier = Modifier.fillMaxSize()) {
         mapEngine.Content(
             modifier = Modifier.fillMaxSize(),
             cameraController = cameraController,
-            markers = markers,
+            // Ocultos por completo en modo dibujo (no solo deshabilitados): descarga visual y
+            // garantiza que todo tap llegue a onMapClick, sin que un ícono de unidad se robe el
+            // toque -- ver spec, sección "Durante el modo dibujo".
+            markers = if (isDrawingGeofence) emptyList() else markers,
             selectedMarkerId = uiState.selectedAssetId,
             myLocationEnabled = hasLocationPermission,
             geofences = uiState.visibleGeofences,
-            onMarkerClick = viewModel::onAssetSelected,
-            onMapClick = viewModel::onBottomSheetDismissed,
+            onMarkerClick = if (isDrawingGeofence) { {} } else viewModel::onAssetSelected,
+            onMapClick = { point ->
+                if (isDrawingGeofence) {
+                    viewModel.onGeofenceMapTapped(point)
+                } else {
+                    viewModel.onBottomSheetDismissed()
+                }
+            },
             contentPadding = mapContentPadding,
-            mapType = uiState.mapType
+            mapType = uiState.mapType,
+            draft = geofenceCreation?.let { creation ->
+                when (creation.type) {
+                    GeofenceDrawType.POLYGON -> GeofenceDraftPreview.Polygon(creation.polygonVertices)
+                    GeofenceDrawType.CIRCLE -> GeofenceDraftPreview.Circle(creation.circleCenter, creation.circleRadiusMeters)
+                    null -> null
+                }
+            }
         )
 
         // El mapa dibuja a pantalla completa (enableEdgeToEdge en MainActivity), pero estos
@@ -172,75 +202,90 @@ fun MapScreen(
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 .padding(SoltelematicSpacing.lg)
         ) {
-            // Una sola pieza (ver mockup): antes la campana y el avatar de cuenta flotaban aparte.
-            // El avatar se fue del todo (ahora vive en el bottom nav, ver SoltelematicNavHost) --
-            // la campana se queda, ahora dentro del mismo Surface que el buscador.
-            MapSearchBar(
-                query = uiState.searchQuery,
-                onQueryChange = viewModel::onSearchQueryChange,
-                onOpenEvents = onOpenEvents,
-                showUnreadDot = uiState.unseenEventsCount > 0,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(SoltelematicSpacing.sm))
-            AssetFilterChipsRow(
-                filters = visibleFilters,
-                activeFilter = uiState.activeFilter,
-                counts = filterCounts,
-                onFilterSelected = viewModel::onFilterSelected
-            )
+            if (geofenceCreation != null) {
+                GeofenceDrawToolbar(
+                    state = geofenceCreation,
+                    onTypeSelected = viewModel::onGeofenceTypeSelected,
+                    onUndo = viewModel::onUndoLastGeofenceVertex,
+                    onClear = viewModel::onClearGeofenceDraft,
+                    onRadiusChanged = viewModel::onGeofenceCircleRadiusChanged,
+                    onCancel = viewModel::onCancelGeofenceCreation,
+                    onConfirm = viewModel::onConfirmGeofenceShape
+                )
+            } else {
+                // Una sola pieza (ver mockup): antes la campana y el avatar de cuenta flotaban aparte.
+                // El avatar se fue del todo (ahora vive en el bottom nav, ver SoltelematicNavHost) --
+                // la campana se queda, ahora dentro del mismo Surface que el buscador.
+                MapSearchBar(
+                    query = uiState.searchQuery,
+                    onQueryChange = viewModel::onSearchQueryChange,
+                    onOpenEvents = onOpenEvents,
+                    showUnreadDot = uiState.unseenEventsCount > 0,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(SoltelematicSpacing.sm))
+                AssetFilterChipsRow(
+                    filters = visibleFilters,
+                    activeFilter = uiState.activeFilter,
+                    counts = filterCounts,
+                    onFilterSelected = viewModel::onFilterSelected
+                )
+            }
         }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .onSizeChanged { size -> fabColumnWidthPx = size.width }
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                .padding(SoltelematicSpacing.lg)
-        ) {
-            MapFab(
-                onClick = { cameraController.fitAll(markers.map { it.position }) },
-                icon = Icons.Filled.ZoomOutMap,
-                contentDescription = stringResource(R.string.map_fit_all)
-            )
-            Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
-            MapFab(
-                onClick = {
-                    if (hasLocationPermission) {
-                        centerOnMyLocation(context, cameraController)
-                    } else {
-                        locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    }
-                },
-                icon = Icons.Filled.MyLocation,
-                contentDescription = stringResource(R.string.map_center_my_location)
-            )
-            Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
-            MapFab(
-                onClick = viewModel::onToggleGeofencesVisibility,
-                icon = if (uiState.showGeofences) Icons.Filled.Layers else Icons.Filled.LayersClear,
-                contentDescription = stringResource(R.string.map_toggle_geofences),
-                active = uiState.showGeofences
-            )
-            Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
-            MapTypeFab(
-                mapType = uiState.mapType,
-                onMapTypeSelected = viewModel::onMapTypeSelected
-            )
+        if (!isDrawingGeofence) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .onSizeChanged { size -> fabColumnWidthPx = size.width }
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+                    .padding(SoltelematicSpacing.lg)
+            ) {
+                MapFab(
+                    onClick = { cameraController.fitAll(markers.map { it.position }) },
+                    icon = Icons.Filled.ZoomOutMap,
+                    contentDescription = stringResource(R.string.map_fit_all)
+                )
+                Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
+                MapFab(
+                    onClick = {
+                        if (hasLocationPermission) {
+                            centerOnMyLocation(context, cameraController)
+                        } else {
+                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                    },
+                    icon = Icons.Filled.MyLocation,
+                    contentDescription = stringResource(R.string.map_center_my_location)
+                )
+                Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
+                GeofencesFab(
+                    showGeofences = uiState.showGeofences,
+                    onToggleVisibility = viewModel::onToggleGeofencesVisibility,
+                    onStartCreation = viewModel::onStartGeofenceCreation
+                )
+                Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
+                MapTypeFab(
+                    mapType = uiState.mapType,
+                    onMapTypeSelected = viewModel::onMapTypeSelected
+                )
+            }
         }
     }
 
-    uiState.selectedAsset?.let { asset ->
-        AssetBottomSheet(
-            asset = asset,
-            stats = uiState.selectedAssetStats,
-            isStatsLoading = uiState.isSelectedAssetStatsLoading,
-            address = uiState.selectedAssetAddress,
-            isAddressLoading = uiState.isSelectedAssetAddressLoading,
-            onDismiss = viewModel::onBottomSheetDismissed,
-            onOpenDetail = { onOpenAssetDetail(asset.id) },
-            onOpenHistory = { onOpenHistory(asset.id) }
-        )
+    if (!isDrawingGeofence) {
+        uiState.selectedAsset?.let { asset ->
+            AssetBottomSheet(
+                asset = asset,
+                stats = uiState.selectedAssetStats,
+                isStatsLoading = uiState.isSelectedAssetStatsLoading,
+                address = uiState.selectedAssetAddress,
+                isAddressLoading = uiState.isSelectedAssetAddressLoading,
+                onDismiss = viewModel::onBottomSheetDismissed,
+                onOpenDetail = { onOpenAssetDetail(asset.id) },
+                onOpenHistory = { onOpenHistory(asset.id) }
+            )
+        }
     }
 }
 
@@ -306,6 +351,50 @@ private fun MapFab(
         )
     ) {
         Icon(icon, contentDescription = contentDescription)
+    }
+}
+
+/**
+ * FAB + DropdownMenu anclado, mismo patrón que MapTypeFab: "Mostrar geocercas" (con check si
+ * showGeofences está activo) + "Crear geocerca". El tinte del FAB sigue reflejando showGeofences
+ * (no si el menú está abierto) -- esa señal no se pierde a simple vista con el cambio de un tap
+ * directo a un menú.
+ */
+@Composable
+private fun GeofencesFab(
+    showGeofences: Boolean,
+    onToggleVisibility: () -> Unit,
+    onStartCreation: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        MapFab(
+            onClick = { expanded = true },
+            icon = if (showGeofences) Icons.Filled.Layers else Icons.Filled.LayersClear,
+            contentDescription = stringResource(R.string.map_geofence_fab_content_description),
+            active = showGeofences
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.map_toggle_geofences)) },
+                trailingIcon = {
+                    if (showGeofences) {
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                },
+                onClick = {
+                    onToggleVisibility()
+                    expanded = false
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.map_geofence_create_menu_item)) },
+                onClick = {
+                    onStartCreation()
+                    expanded = false
+                }
+            )
+        }
     }
 }
 

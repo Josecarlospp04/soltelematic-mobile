@@ -249,4 +249,62 @@ class MapViewModel(
             _uiState.update { it.copy(isRefreshing = false) }
         }
     }
+
+    // --- Creación de geocercas: modo dibujo (guardar llega en un paso siguiente) ---
+
+    fun onStartGeofenceCreation() {
+        onBottomSheetDismissed()
+        _uiState.update { it.copy(geofenceCreation = GeofenceCreationState()) }
+    }
+
+    fun onCancelGeofenceCreation() {
+        _uiState.update { it.copy(geofenceCreation = null) }
+    }
+
+    fun onGeofenceTypeSelected(type: GeofenceDrawType) {
+        _uiState.update { it.copy(geofenceCreation = it.geofenceCreation?.copy(type = type)) }
+    }
+
+    /** Ignorado si el formulario ya está abierto (creation.showForm) -- la forma queda fija en
+     * cuanto el usuario pasa al formulario, un toque detrás del sheet no debe seguir editándola. */
+    fun onGeofenceMapTapped(point: GeoPoint) {
+        _uiState.update { state ->
+            val creation = state.geofenceCreation ?: return@update state
+            if (creation.showForm) return@update state
+            val updated = when (creation.type) {
+                GeofenceDrawType.POLYGON -> creation.copy(polygonVertices = creation.polygonVertices + point)
+                // Siempre reemplaza (no solo si era null): permite recorregir el centro con otro
+                // toque antes de confirmar la forma.
+                GeofenceDrawType.CIRCLE -> creation.copy(circleCenter = point)
+                null -> creation
+            }
+            state.copy(geofenceCreation = updated)
+        }
+    }
+
+    fun onUndoLastGeofenceVertex() {
+        _uiState.update { state ->
+            val creation = state.geofenceCreation ?: return@update state
+            state.copy(geofenceCreation = creation.copy(polygonVertices = creation.polygonVertices.dropLast(1)))
+        }
+    }
+
+    fun onClearGeofenceDraft() {
+        _uiState.update { state ->
+            val creation = state.geofenceCreation ?: return@update state
+            state.copy(geofenceCreation = creation.copy(polygonVertices = emptyList()))
+        }
+    }
+
+    fun onGeofenceCircleRadiusChanged(meters: Double) {
+        _uiState.update { it.copy(geofenceCreation = it.geofenceCreation?.copy(circleRadiusMeters = meters)) }
+    }
+
+    fun onConfirmGeofenceShape() {
+        _uiState.update { state ->
+            val creation = state.geofenceCreation ?: return@update state
+            if (!creation.canConfirmShape) return@update state
+            state.copy(geofenceCreation = creation.copy(showForm = true))
+        }
+    }
 }
