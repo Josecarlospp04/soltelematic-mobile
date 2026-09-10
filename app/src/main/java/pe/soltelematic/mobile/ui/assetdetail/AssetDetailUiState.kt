@@ -2,14 +2,16 @@ package pe.soltelematic.mobile.ui.assetdetail
 
 import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.domain.model.AssetDetail
+import pe.soltelematic.mobile.domain.model.DeviceCommand
 import pe.soltelematic.mobile.domain.model.UnitStat
 
 /**
- * address y todayStats tienen su propio par de carga/dato, separado de isLoading/error (que son
- * solo de device/{id}): un fallo o demora en cualquiera de los dos dos no debe bloquear ni tocar
- * la ficha ya cargada. Ninguno de los dos expone un error explícito -- si fallan, la sección
- * correspondiente simplemente no se llena (address se queda null, todayStats vacío), igual que
- * AccountViewModel se queda con lastEmail si /user falla.
+ * address, todayStats y commands tienen su propio par de carga/dato, separado de isLoading/error
+ * (que son solo de device/{id}): un fallo o demora en cualquiera de los tres no debe bloquear ni
+ * tocar la ficha ya cargada. Ninguno expone un error explícito -- si fallan, la sección
+ * correspondiente simplemente no se llena (address se queda null, todayStats/commands vacíos),
+ * igual que AccountViewModel se queda con lastEmail si /user falla. sendingCommandType es el type
+ * del comando en vuelo (null = ninguno) -- solo puede haber un envío a la vez.
  */
 data class AssetDetailUiState(
     val isLoading: Boolean = true,
@@ -18,5 +20,19 @@ data class AssetDetailUiState(
     val isAddressLoading: Boolean = false,
     val address: String? = null,
     val isTodayStatsLoading: Boolean = false,
-    val todayStats: List<UnitStat> = emptyList()
+    val todayStats: List<UnitStat> = emptyList(),
+    val isCommandsLoading: Boolean = true,
+    val commands: List<DeviceCommand> = emptyList(),
+    val sendingCommandType: String? = null
 )
+
+/**
+ * Resultado de un envío de comando, para mostrar una sola vez (Snackbar en AssetDetailScreen) --
+ * no vive en AssetDetailUiState porque un StateFlow re-emitiría el mismo resultado en cada
+ * recomposición/rotación (ver AccountViewModel.loggedOut para el mismo patrón de SharedFlow).
+ */
+sealed class CommandResultEvent {
+    data class Success(val message: String) : CommandResultEvent()
+    data class Rejected(val errors: List<String>) : CommandResultEvent()
+    data object NetworkError : CommandResultEvent()
+}

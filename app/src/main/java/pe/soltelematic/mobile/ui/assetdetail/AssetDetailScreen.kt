@@ -16,20 +16,25 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import pe.soltelematic.mobile.R
@@ -53,8 +58,28 @@ fun AssetDetailScreen(
     viewModel: AssetDetailViewModel = koinViewModel(parameters = { parametersOf(assetId) })
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val networkErrorMessage = stringResource(R.string.asset_detail_command_network_error)
+
+    LaunchedEffect(Unit) {
+        viewModel.commandResult.collect { event ->
+            val message = when (event) {
+                is CommandResultEvent.Success -> event.message
+                // Ya trae el nombre de la unidad incluido (ver SendCommandController en el
+                // servidor) -- varias líneas solo si el comando se manda a más de un dispositivo,
+                // lo que hoy no pasa desde la ficha (siempre es una sola unidad).
+                is CommandResultEvent.Rejected -> event.errors.joinToString("\n")
+                CommandResultEvent.NetworkError -> networkErrorMessage
+            }
+            if (message.isNotBlank()) {
+                coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+            }
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -92,7 +117,15 @@ fun AssetDetailScreen(
             )
         },
         bottomBar = {
-            if (uiState.detail != null) DetailActionsFooter(onOpenHistory = onOpenHistory)
+            if (uiState.detail != null) {
+                DetailActionsFooter(
+                    onOpenHistory = onOpenHistory,
+                    commands = uiState.commands,
+                    isCommandsLoading = uiState.isCommandsLoading,
+                    sendingCommandType = uiState.sendingCommandType,
+                    onSendCommand = viewModel::onSendCommand
+                )
+            }
         }
     ) { innerPadding ->
         Box(

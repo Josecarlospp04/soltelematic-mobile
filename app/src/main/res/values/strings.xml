@@ -95,9 +95,17 @@
     <string name="asset_detail_action_history">Historial</string>
     <string name="asset_detail_action_share">Compartir</string>
     <string name="asset_detail_action_commands">Comandos</string>
-    <string name="asset_detail_action_commands_hint">Disponible próximamente</string>
-    <string name="asset_detail_command_stop">Parar motor</string>
-    <string name="asset_detail_command_start">Arrancar motor</string>
+    <string name="asset_detail_commands_loading">Cargando comandos…</string>
+    <string name="asset_detail_commands_empty">No hay comandos disponibles para esta unidad.</string>
+    <string name="asset_detail_command_send">Enviar</string>
+    <string name="asset_detail_command_cancel">Cancelar</string>
+    <string name="asset_detail_command_confirm_title">Enviar comando</string>
+    <string name="asset_detail_command_confirm_message">¿Enviar \"%1$s\" a esta unidad?</string>
+    <string name="asset_detail_command_raw_warning_title">Comando personalizado</string>
+    <string name="asset_detail_command_raw_warning_message">Vas a enviar \"%1$s\" como texto libre directamente al dispositivo. Un comando incorrecto puede afectar su funcionamiento.\n\n¿Continuar?</string>
+    <string name="asset_detail_command_pick_datetime">Elegir fecha y hora</string>
+    <string name="asset_detail_command_max_value_format">Máximo %1$d</string>
+    <string name="asset_detail_command_network_error">No se pudo enviar el comando. Intenta de nuevo.</string>
     <string name="asset_detail_last_report">Último reporte %1$s</string>
     <string name="asset_detail_location_title">Ubicación</string>
 
