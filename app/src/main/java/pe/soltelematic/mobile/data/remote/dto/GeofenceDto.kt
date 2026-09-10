@@ -49,3 +49,15 @@ data class GeofencePointDto(
     val lat: Double? = null,
     val lng: Double? = null
 )
+
+/**
+ * Respuesta de POST geofences, confirmada contra el servidor real (id 6 circle, id 7 polygon --
+ * ver docs/superpowers/specs/2026-09-09-crear-geocercas-design.md): "data" tiene EXACTAMENTE la
+ * misma forma que cada elemento de GeofencesPageDto.data, así que se reutiliza GeofenceDto en vez
+ * de duplicar un DTO paralelo.
+ */
+@Serializable
+data class CreateGeofenceResponseDto(
+    val status: Int? = null,
+    val data: GeofenceDto? = null
+)

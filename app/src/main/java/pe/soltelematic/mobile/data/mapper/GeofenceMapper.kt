@@ -2,11 +2,14 @@ package pe.soltelematic.mobile.data.mapper
 
 import pe.soltelematic.mobile.data.remote.dto.GeofenceDto
 import pe.soltelematic.mobile.data.remote.dto.GeofencePointDto
-import pe.soltelematic.mobile.domain.model.Geofence
 import pe.soltelematic.mobile.domain.model.GeoPoint
+import pe.soltelematic.mobile.domain.model.Geofence
+import pe.soltelematic.mobile.domain.model.GeofenceCreateRequest
 import pe.soltelematic.mobile.domain.model.GeofenceShape
 
 private const val MIN_POLYGON_VERTICES = 3
+private const val REQUEST_TYPE_POLYGON = "polygon"
+private const val REQUEST_TYPE_CIRCLE = "circle"
 
 // type explícito del servidor, mismo criterio que AlertEventType: un valor no reconocido cae en
 // UNKNOWN y el mapper lo descarta, nunca lanza excepción.
@@ -59,4 +62,36 @@ private fun GeofencePointDto.toGeoPointOrNull(): GeoPoint? {
     val latValue = lat ?: return null
     val lngValue = lng ?: return null
     return GeoPoint(latValue, lngValue)
+}
+
+/**
+ * Arma el body form-urlencoded para POST geofences -- notación de corchetes (polygon[i][lat],
+ * center[lat]), confirmada contra el servidor real para ambos tipos de forma (id 6 circle, id 7
+ * polygon, ver docs/superpowers/specs/2026-09-09-crear-geocercas-design.md). group_id nunca se
+ * incluye (fuera de alcance). El nombre polygon_color es el que pide el validador AL ESCRIBIR --
+ * no es el mismo que color, que es como vuelve AL LEER (ver GeofenceDto.toDomain arriba): no se
+ * unifican a propósito.
+ */
+fun GeofenceCreateRequest.toFormParams(): Map<String, String> {
+    val params = mutableMapOf(
+        "name" to name,
+        "polygon_color" to colorHex
+    )
+    speedLimit?.let { params["speed_limit"] = it.toString() }
+    when (val shape = shape) {
+        is GeofenceShape.Polygon -> {
+            params["type"] = REQUEST_TYPE_POLYGON
+            shape.vertices.forEachIndexed { index, vertex ->
+                params["polygon[$index][lat]"] = vertex.lat.toString()
+                params["polygon[$index][lng]"] = vertex.lng.toString()
+            }
+        }
+        is GeofenceShape.Circle -> {
+            params["type"] = REQUEST_TYPE_CIRCLE
+            params["center[lat]"] = shape.center.lat.toString()
+            params["center[lng]"] = shape.center.lng.toString()
+            params["radius"] = shape.radiusMeters.toString()
+        }
+    }
+    return params
 }
