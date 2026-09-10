@@ -50,6 +50,18 @@ interface MapCameraController {
 }
 
 /**
+ * Forma en construcción durante el modo dibujo de geocercas (ver MapScreen/MapViewModel) -- vive
+ * acá, no en domain/model/GeofenceShape, porque tolera estados intermedios que una geocerca real
+ * nunca tiene (polígono con 0-2 vértices, círculo sin centro todavía). El color final se elige
+ * recién en el formulario, así que el engine la dibuja con un color fijo propio (ver
+ * GoogleMapEngine).
+ */
+sealed interface GeofenceDraftPreview {
+    data class Polygon(val vertices: List<GeoPoint>) : GeofenceDraftPreview
+    data class Circle(val center: GeoPoint?, val radiusMeters: Double) : GeofenceDraftPreview
+}
+
+/**
  * Todo lo que una pantalla puede pedirle a un mapa, sin nombrar Google Maps ni ningún otro
  * proveedor. Migrar a MapLibre es escribir una implementación nueva de esta interfaz, no
  * tocar ui/map/MapScreen.kt.
@@ -75,13 +87,20 @@ interface MapEngine {
         // Nunca clicables (ver GoogleMapEngine): competirían con el toque para seleccionar unidades.
         geofences: List<Geofence>,
         onMarkerClick: (Int) -> Unit,
-        onMapClick: () -> Unit,
+        // Entrega el punto del mapa que se tocó -- lo necesita el modo dibujo de geocercas
+        // (agregar vértice / fijar centro). En modo normal (MapScreen) se ignora.
+        onMapClick: (GeoPoint) -> Unit,
         // Espacio real ocupado por los overlays de MapScreen (barra de búsqueda + chips arriba,
         // columna de FABs a la derecha), medido en runtime, no un margen fijo. El motor lo usa
         // para que ni sus controles propios ni el encuadre (fitAll) queden debajo de esos overlays.
         contentPadding: PaddingValues,
         // NORMAL por defecto (ver MapUiState). El SDK concreto (GoogleMapEngine) lo traduce a su
         // propio enum de tipo de mapa -- este contrato no nombra Google Maps.
-        mapType: MapType
+        mapType: MapType,
+        // null = no está en modo dibujo. Sin valor por defecto a propósito (mismo motivo que
+        // RouteMapEngine.Content.playbackPoint): un default en un miembro @Composable de una
+        // interfaz no genera el bridge $default correctamente -- AbstractMethodError en runtime
+        // al llamarlo a través del tipo de interfaz. Todo caller pasa este parámetro explícito.
+        draft: GeofenceDraftPreview?
     )
 }
