@@ -29,7 +29,9 @@ data class MapUiState(
     val isSelectedAssetAddressLoading: Boolean = false,
     val selectedAssetAddress: String? = null,
     // null = mapa normal, fuera de modo dibujo. Ver GeofenceCreationState.
-    val geofenceCreation: GeofenceCreationState? = null
+    val geofenceCreation: GeofenceCreationState? = null,
+    // null = hoja de borrado cerrada. Ver GeofenceDeletionState.
+    val geofenceDeletion: GeofenceDeletionState? = null
 ) {
     val visibleAssets: List<Asset>
         get() = assets
@@ -81,4 +83,21 @@ data class GeofenceCreationState(
 sealed class GeofenceCreateEvent {
     data object Success : GeofenceCreateEvent()
     data object GeneralError : GeofenceCreateEvent()
+}
+
+/**
+ * Estado de la hoja de borrado -- la lista misma vive en MapUiState.geofences (sin refetch, ver
+ * GeofenceDeleteSheet), esto solo trackea qué fila tiene el diálogo de confirmación abierto y
+ * cuál tiene el DELETE en curso. Nunca hay más de un borrado en vuelo a la vez.
+ */
+data class GeofenceDeletionState(
+    val pendingDeleteId: Int? = null,
+    val deletingId: Int? = null
+)
+
+/** Resultado de borrar, para mostrar una sola vez (Snackbar en MapScreen) -- mismo patrón que
+ * GeofenceCreateEvent. Un error no cierra la hoja: el usuario puede reintentar. */
+sealed class GeofenceDeleteEvent {
+    data object Success : GeofenceDeleteEvent()
+    data object Error : GeofenceDeleteEvent()
 }
