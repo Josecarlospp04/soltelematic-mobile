@@ -127,7 +127,7 @@
     <string name="asset_detail_action_share">Compartir</string>
     <string name="asset_detail_action_commands">Comandos</string>
     <string name="asset_detail_commands_loading">Cargando comandos…</string>
-    <string name="asset_detail_commands_empty">No hay comandos disponibles para esta unidad.</string>
+    <string name="asset_detail_commands_count">(%1$d)</string>
     <string name="asset_detail_command_send">Enviar</string>
     <string name="asset_detail_command_cancel">Cancelar</string>
     <string name="asset_detail_command_confirm_title">Enviar comando</string>

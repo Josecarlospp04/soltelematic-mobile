@@ -1,10 +1,13 @@
 package pe.soltelematic.mobile.ui.assetdetail
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -34,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.stringResource
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.domain.model.DeviceCommand
@@ -112,6 +117,12 @@ fun DetailActionsFooter(
  *   (o de advertencia si isRawCommand, ver RawCommandWarningDialog) y se envía.
  * - si no, abre CommandFormSheet; su botón "Enviar" es la confirmación para comandos guardados o
  *   de protocolo, y para isRawCommand pasa antes por la misma advertencia de arriba.
+ *
+ * Colapsable, y SIEMPRE arranca colapsada (remember, no rememberSaveable -- ver
+ * CollapsibleCommandsHeader): antes la lista completa quedaba expandida por defecto y empujaba el
+ * resto de la ficha, incluso con 10+ comandos. Sin comandos (ya resuelto, no cargando) la sección
+ * entera no se dibuja -- un encabezado colapsable que solo lleva a "no hay nada acá" no aporta,
+ * ocupa menos que el mensaje de vacío que mostraba antes.
  */
 @Composable
 private fun CommandsSection(
@@ -125,32 +136,17 @@ private fun CommandsSection(
     var rawConfirm by remember { mutableStateOf<Pair<DeviceCommand, Map<String, String>>?>(null) }
     val isSendingAny = sendingCommandType != null
 
-    Column(verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)) {
-        Text(
-            text = stringResource(R.string.asset_detail_action_commands).uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        when {
-            isLoading -> CommandsLoadingRow()
-            commands.isEmpty() -> Text(
-                text = stringResource(R.string.asset_detail_commands_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = LocalSoltelematicColors.current.inkFaint
-            )
-            else -> Column {
-                commands.forEach { command ->
-                    CommandRow(
-                        command = command,
-                        isSending = sendingCommandType == command.type,
-                        enabled = !isSendingAny,
-                        onClick = {
-                            if (command.canSendDirectly) pendingCommand = command else formCommand = command
-                        }
-                    )
-                }
+    when {
+        isLoading -> CommandsLoadingSection()
+        commands.isNotEmpty() -> CollapsibleCommandsHeader(
+            commands = commands,
+            sendingCommandType = sendingCommandType,
+            isSendingAny = isSendingAny,
+            onCommandClick = { command ->
+                if (command.canSendDirectly) pendingCommand = command else formCommand = command
             }
-        }
+        )
+        // commands.isEmpty() && !isLoading: nada que dibujar, ver doc comment arriba.
     }
 
     pendingCommand?.let { command ->
@@ -220,21 +216,89 @@ private fun DismissCommandDialogWhenDone(type: String, sendingCommandType: Strin
 }
 
 @Composable
-private fun CommandsLoadingRow() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
-        modifier = Modifier.heightIn(min = SoltelematicMinTouchTarget)
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(SoltelematicIconSpec.small),
-            strokeWidth = SoltelematicIconSpec.strokeWidth
-        )
+private fun CommandsLoadingSection() {
+    Column(verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)) {
         Text(
-            text = stringResource(R.string.asset_detail_commands_loading),
-            style = MaterialTheme.typography.bodyMedium,
-            color = LocalSoltelematicColors.current.inkFaint
+            text = stringResource(R.string.asset_detail_action_commands).uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
+            modifier = Modifier.heightIn(min = SoltelematicMinTouchTarget)
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(SoltelematicIconSpec.small),
+                strokeWidth = SoltelematicIconSpec.strokeWidth
+            )
+            Text(
+                text = stringResource(R.string.asset_detail_commands_loading),
+                style = MaterialTheme.typography.bodyMedium,
+                color = LocalSoltelematicColors.current.inkFaint
+            )
+        }
+    }
+}
+
+/**
+ * Encabezado tocable (título + contador + chevron que rota) que expande/colapsa la lista completa
+ * debajo -- remember (no rememberSaveable): cada apertura de la ficha es una composición nueva de
+ * AssetDetailScreen, así que arranca colapsada siempre, sin recordar el estado de una visita
+ * anterior. AnimatedVisibility anima la aparición/desaparición de la lista (mismo patrón que
+ * ExtraStatsSection en HistoryTimeline.kt) en vez de un salto brusco.
+ */
+@Composable
+private fun CollapsibleCommandsHeader(
+    commands: List<DeviceCommand>,
+    sendingCommandType: String?,
+    isSendingAny: Boolean,
+    onCommandClick: (DeviceCommand) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "commandsChevron")
+
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = SoltelematicMinTouchTarget)
+                .clickable { expanded = !expanded }
+        ) {
+            Text(
+                text = stringResource(R.string.asset_detail_action_commands).uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = stringResource(R.string.asset_detail_commands_count, commands.size),
+                style = MaterialTheme.typography.labelSmall,
+                color = LocalSoltelematicColors.current.inkFaint,
+                modifier = Modifier.padding(start = SoltelematicSpacing.xs)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(
+                Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = LocalSoltelematicColors.current.inkFaint,
+                modifier = Modifier
+                    .size(SoltelematicIconSpec.small)
+                    .rotate(chevronRotation)
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column {
+                commands.forEach { command ->
+                    CommandRow(
+                        command = command,
+                        isSending = sendingCommandType == command.type,
+                        enabled = !isSendingAny,
+                        onClick = { onCommandClick(command) }
+                    )
+                }
+            }
+        }
     }
 }
 
