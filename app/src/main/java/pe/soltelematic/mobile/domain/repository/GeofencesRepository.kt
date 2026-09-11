@@ -18,4 +18,12 @@ interface GeofencesRepository {
      * resultado, no hay lógica de mapeo separada acá.
      */
     suspend fun createGeofence(request: GeofenceCreateRequest): ApiResult<Geofence>
+
+    /**
+     * El servidor filtra por propiedad -- un id ajeno o inexistente devuelve 404 igual
+     * (ApiError.Http(404, ...)), no hay forma de distinguirlos desde acá ni falta hacerlo: quien
+     * llama ya sabe qué geocerca está borrando (viene de MapUiState.geofences), así que un 404
+     * solo puede significar que alguien más la borró mientras tanto.
+     */
+    suspend fun deleteGeofence(id: Int): ApiResult<Unit>
 }

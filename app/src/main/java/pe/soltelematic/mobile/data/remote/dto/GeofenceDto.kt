@@ -61,3 +61,15 @@ data class CreateGeofenceResponseDto(
     val status: Int? = null,
     val data: GeofenceDto? = null
 )
+
+/**
+ * Respuesta de DELETE geofences/{id}, confirmada contra el servidor real vía curl:
+ * {"status":1,"id":12}. Ningún campo se usa -- el HTTP 200 ya es la señal de éxito (ver
+ * GeofencesRepositoryImpl.deleteGeofence) -- se declara el DTO solo porque el body no está vacío
+ * y el conversor de Retrofit necesita deserializarlo a algo.
+ */
+@Serializable
+data class DeleteGeofenceResponseDto(
+    val status: Int? = null,
+    val id: Int? = null
+)

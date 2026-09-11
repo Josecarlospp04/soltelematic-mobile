@@ -40,4 +40,10 @@ class GeofencesRepositoryImpl(
                 ?: ApiResult.Error(ApiError.Unknown("Respuesta de creación de geocerca incompleta"))
             is ApiResult.Error -> result
         }
+
+    override suspend fun deleteGeofence(id: Int): ApiResult<Unit> =
+        when (val result = apiCallExecutor.execute { api.deleteGeofence(id) }) {
+            is ApiResult.Success -> ApiResult.Success(Unit)
+            is ApiResult.Error -> result
+        }
 }
