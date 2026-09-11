@@ -42,6 +42,8 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +65,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.R
@@ -101,6 +105,21 @@ fun MapScreen(
 
     LaunchedEffect(Unit) {
         viewModel.autoFitCamera.collect { positions -> cameraController.fitAll(positions) }
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val geofenceCreatedMessage = stringResource(R.string.map_geofence_created_message)
+    val geofenceErrorMessage = stringResource(R.string.map_geofence_generic_error)
+
+    LaunchedEffect(Unit) {
+        viewModel.geofenceCreateEvent.collect { event ->
+            val message = when (event) {
+                GeofenceCreateEvent.Success -> geofenceCreatedMessage
+                GeofenceCreateEvent.GeneralError -> geofenceErrorMessage
+            }
+            coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+        }
     }
 
     // Cancela el modo dibujo en vez de salir de la pantalla. No hace falta lógica adicional para
@@ -271,6 +290,11 @@ fun MapScreen(
                 )
             }
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 
     if (!isDrawingGeofence) {
@@ -284,6 +308,19 @@ fun MapScreen(
                 onDismiss = viewModel::onBottomSheetDismissed,
                 onOpenDetail = { onOpenAssetDetail(asset.id) },
                 onOpenHistory = { onOpenHistory(asset.id) }
+            )
+        }
+    }
+
+    geofenceCreation?.let { creation ->
+        if (creation.showForm) {
+            CreateGeofenceFormSheet(
+                state = creation,
+                onNameChanged = viewModel::onGeofenceNameChanged,
+                onColorSelected = viewModel::onGeofenceColorSelected,
+                onSpeedLimitChanged = viewModel::onGeofenceSpeedLimitInputChanged,
+                onDismiss = viewModel::onGeofenceFormDismissed,
+                onSave = viewModel::onSaveGeofence
             )
         }
     }
