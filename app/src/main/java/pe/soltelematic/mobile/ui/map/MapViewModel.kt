@@ -14,11 +14,14 @@ import kotlinx.coroutines.launch
 import pe.soltelematic.mobile.core.network.RealtimePoller
 import pe.soltelematic.mobile.core.network.SocketRealtimeClient
 import pe.soltelematic.mobile.core.network.UnseenEventsPoller
+import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
+import pe.soltelematic.mobile.domain.model.GeofenceCreateRequest
+import pe.soltelematic.mobile.domain.model.GeofenceShape
 import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
 import pe.soltelematic.mobile.domain.repository.AssetRepository
@@ -61,6 +64,9 @@ class MapViewModel(
 
     private val _autoFitCamera = MutableSharedFlow<List<GeoPoint>>(extraBufferCapacity = 1)
     val autoFitCamera: SharedFlow<List<GeoPoint>> = _autoFitCamera.asSharedFlow()
+
+    private val _geofenceCreateEvent = MutableSharedFlow<GeofenceCreateEvent>(extraBufferCapacity = 1)
+    val geofenceCreateEvent: SharedFlow<GeofenceCreateEvent> = _geofenceCreateEvent.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -250,7 +256,7 @@ class MapViewModel(
         }
     }
 
-    // --- Creación de geocercas: modo dibujo (guardar llega en un paso siguiente) ---
+    // --- Creación de geocercas ---
 
     fun onStartGeofenceCreation() {
         onBottomSheetDismissed()
@@ -305,6 +311,74 @@ class MapViewModel(
             val creation = state.geofenceCreation ?: return@update state
             if (!creation.canConfirmShape) return@update state
             state.copy(geofenceCreation = creation.copy(showForm = true))
+        }
+    }
+
+    /** Vuelve al modo dibujo con la forma intacta -- no descarta nada. Para eso está
+     * onCancelGeofenceCreation, en el toolbar de dibujo. */
+    fun onGeofenceFormDismissed() {
+        _uiState.update { it.copy(geofenceCreation = it.geofenceCreation?.copy(showForm = false)) }
+    }
+
+    fun onGeofenceNameChanged(name: String) {
+        _uiState.update { it.copy(geofenceCreation = it.geofenceCreation?.copy(name = name)) }
+    }
+
+    fun onGeofenceColorSelected(colorHex: String) {
+        _uiState.update { it.copy(geofenceCreation = it.geofenceCreation?.copy(colorHex = colorHex)) }
+    }
+
+    fun onGeofenceSpeedLimitInputChanged(input: String) {
+        if (input.isNotEmpty() && !input.all(Char::isDigit)) return
+        _uiState.update { it.copy(geofenceCreation = it.geofenceCreation?.copy(speedLimitInput = input)) }
+    }
+
+    private fun GeofenceCreationState.toShapeOrNull(): GeofenceShape? = when (type) {
+        GeofenceDrawType.POLYGON ->
+            if (polygonVertices.size >= 3) GeofenceShape.Polygon(polygonVertices) else null
+        GeofenceDrawType.CIRCLE -> circleCenter?.let { center ->
+            if (circleRadiusMeters > 0) GeofenceShape.Circle(center, circleRadiusMeters) else null
+        }
+        null -> null
+    }
+
+    fun onSaveGeofence() {
+        val creation = _uiState.value.geofenceCreation ?: return
+        val shape = creation.toShapeOrNull() ?: return
+        if (creation.name.isBlank() || creation.isSaving) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(geofenceCreation = it.geofenceCreation?.copy(isSaving = true, fieldErrors = emptyMap(), hasGeneralError = false))
+            }
+            val request = GeofenceCreateRequest(
+                name = creation.name,
+                shape = shape,
+                colorHex = creation.colorHex,
+                speedLimit = creation.speedLimitInput.toIntOrNull()
+            )
+            when (val result = geofencesRepository.createGeofence(request)) {
+                is ApiResult.Success -> {
+                    _uiState.update { it.copy(geofences = it.geofences + result.data, geofenceCreation = null) }
+                    // Se enciende sola tras crear una geocerca, aunque el usuario la haya apagado
+                    // antes: si no, el usuario crea algo y no ve nada. Nunca se toca al ENTRAR en
+                    // modo dibujo (ver onStartGeofenceCreation) -- solo tras un guardado exitoso,
+                    // no hay que confundir "activar la capa" con "el usuario pidió verla".
+                    userPreferences.setShowGeofences(true)
+                    _geofenceCreateEvent.emit(GeofenceCreateEvent.Success)
+                }
+                is ApiResult.Error -> when (val error = result.error) {
+                    is ApiError.ValidationError -> _uiState.update {
+                        it.copy(geofenceCreation = it.geofenceCreation?.copy(isSaving = false, fieldErrors = error.fieldErrors))
+                    }
+                    else -> {
+                        _uiState.update {
+                            it.copy(geofenceCreation = it.geofenceCreation?.copy(isSaving = false, hasGeneralError = true))
+                        }
+                        _geofenceCreateEvent.emit(GeofenceCreateEvent.GeneralError)
+                    }
+                }
+            }
         }
     }
 }
