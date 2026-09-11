@@ -68,6 +68,9 @@ class MapViewModel(
     private val _geofenceCreateEvent = MutableSharedFlow<GeofenceCreateEvent>(extraBufferCapacity = 1)
     val geofenceCreateEvent: SharedFlow<GeofenceCreateEvent> = _geofenceCreateEvent.asSharedFlow()
 
+    private val _geofenceDeleteEvent = MutableSharedFlow<GeofenceDeleteEvent>(extraBufferCapacity = 1)
+    val geofenceDeleteEvent: SharedFlow<GeofenceDeleteEvent> = _geofenceDeleteEvent.asSharedFlow()
+
     init {
         viewModelScope.launch {
             assetRepository.observeAssets().collect { assets ->
@@ -377,6 +380,59 @@ class MapViewModel(
                         }
                         _geofenceCreateEvent.emit(GeofenceCreateEvent.GeneralError)
                     }
+                }
+            }
+        }
+    }
+
+    // --- Borrado de geocercas ---
+
+    fun onStartGeofenceDeletion() {
+        onBottomSheetDismissed()
+        // Mismo fetch (una sola vez, guardado por geofencesRequested) que dispara el interruptor
+        // de visibilidad -- si el usuario nunca lo encendió, MapUiState.geofences seguiría vacío
+        // y la hoja mostraría "sin geocercas" aunque sí existan en el servidor.
+        loadGeofencesIfNeeded()
+        _uiState.update { it.copy(geofenceDeletion = GeofenceDeletionState()) }
+    }
+
+    fun onGeofenceDeletionDismissed() {
+        _uiState.update { it.copy(geofenceDeletion = null) }
+    }
+
+    fun onGeofenceDeleteRequested(id: Int) {
+        _uiState.update { it.copy(geofenceDeletion = it.geofenceDeletion?.copy(pendingDeleteId = id)) }
+    }
+
+    fun onGeofenceDeleteCancelled() {
+        _uiState.update { it.copy(geofenceDeletion = it.geofenceDeletion?.copy(pendingDeleteId = null)) }
+    }
+
+    fun onGeofenceDeleteConfirmed() {
+        val deletion = _uiState.value.geofenceDeletion ?: return
+        val id = deletion.pendingDeleteId ?: return
+        if (deletion.deletingId != null) return // ya hay un borrado en curso
+
+        _uiState.update {
+            it.copy(geofenceDeletion = it.geofenceDeletion?.copy(pendingDeleteId = null, deletingId = id))
+        }
+        viewModelScope.launch {
+            when (val result = geofencesRepository.deleteGeofence(id)) {
+                is ApiResult.Success -> {
+                    _uiState.update { state ->
+                        val remaining = state.geofences.filterNot { it.id == id }
+                        state.copy(
+                            geofences = remaining,
+                            // Sin nada más que borrar, la hoja se cierra sola; si queda algo, se
+                            // mantiene abierta para poder seguir borrando sin reabrir el menú.
+                            geofenceDeletion = if (remaining.isEmpty()) null else state.geofenceDeletion?.copy(deletingId = null)
+                        )
+                    }
+                    _geofenceDeleteEvent.emit(GeofenceDeleteEvent.Success)
+                }
+                is ApiResult.Error -> {
+                    _uiState.update { it.copy(geofenceDeletion = it.geofenceDeletion?.copy(deletingId = null)) }
+                    _geofenceDeleteEvent.emit(GeofenceDeleteEvent.Error)
                 }
             }
         }
