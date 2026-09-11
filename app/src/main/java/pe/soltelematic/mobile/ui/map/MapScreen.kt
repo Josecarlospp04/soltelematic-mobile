@@ -111,12 +111,24 @@ fun MapScreen(
     val coroutineScope = rememberCoroutineScope()
     val geofenceCreatedMessage = stringResource(R.string.map_geofence_created_message)
     val geofenceErrorMessage = stringResource(R.string.map_geofence_generic_error)
+    val geofenceDeletedMessage = stringResource(R.string.map_geofence_delete_success_message)
+    val geofenceDeleteErrorMessage = stringResource(R.string.map_geofence_delete_error_message)
 
     LaunchedEffect(Unit) {
         viewModel.geofenceCreateEvent.collect { event ->
             val message = when (event) {
                 GeofenceCreateEvent.Success -> geofenceCreatedMessage
                 GeofenceCreateEvent.GeneralError -> geofenceErrorMessage
+            }
+            coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.geofenceDeleteEvent.collect { event ->
+            val message = when (event) {
+                GeofenceDeleteEvent.Success -> geofenceDeletedMessage
+                GeofenceDeleteEvent.Error -> geofenceDeleteErrorMessage
             }
             coroutineScope.launch { snackbarHostState.showSnackbar(message) }
         }
@@ -281,7 +293,8 @@ fun MapScreen(
                 GeofencesFab(
                     showGeofences = uiState.showGeofences,
                     onToggleVisibility = viewModel::onToggleGeofencesVisibility,
-                    onStartCreation = viewModel::onStartGeofenceCreation
+                    onStartCreation = viewModel::onStartGeofenceCreation,
+                    onStartDeletion = viewModel::onStartGeofenceDeletion
                 )
                 Spacer(modifier = Modifier.height(SoltelematicSpacing.md))
                 MapTypeFab(
@@ -323,6 +336,17 @@ fun MapScreen(
                 onSave = viewModel::onSaveGeofence
             )
         }
+    }
+
+    uiState.geofenceDeletion?.let { deletion ->
+        GeofenceDeleteSheet(
+            geofences = uiState.geofences,
+            deletion = deletion,
+            onDeleteRequested = viewModel::onGeofenceDeleteRequested,
+            onDeleteConfirmed = viewModel::onGeofenceDeleteConfirmed,
+            onDeleteCancelled = viewModel::onGeofenceDeleteCancelled,
+            onDismiss = viewModel::onGeofenceDeletionDismissed
+        )
     }
 }
 
@@ -401,7 +425,8 @@ private fun MapFab(
 private fun GeofencesFab(
     showGeofences: Boolean,
     onToggleVisibility: () -> Unit,
-    onStartCreation: () -> Unit
+    onStartCreation: () -> Unit,
+    onStartDeletion: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -428,6 +453,15 @@ private fun GeofencesFab(
                 text = { Text(stringResource(R.string.map_geofence_create_menu_item)) },
                 onClick = {
                     onStartCreation()
+                    expanded = false
+                }
+            )
+            // Nunca deshabilitado aunque la lista esté vacía (ver GeofenceDeleteSheet): un ítem de
+            // menú apagado no explica por qué, abrir la hoja y ver el estado vacío sí.
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.map_geofence_delete_menu_item)) },
+                onClick = {
+                    onStartDeletion()
                     expanded = false
                 }
             )
