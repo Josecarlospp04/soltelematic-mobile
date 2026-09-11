@@ -41,7 +41,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.format.formatDurationCompact
-import pe.soltelematic.mobile.core.format.isDurationStatKey
+import pe.soltelematic.mobile.core.format.isDurationStat
 import pe.soltelematic.mobile.core.format.normalizeSpeedUnit
 import pe.soltelematic.mobile.core.format.normalizeSpeedUnitSuffix
 import pe.soltelematic.mobile.core.time.LastSeenFreshness
@@ -68,6 +68,13 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 private val LAST_REPORT_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+
+// Sin segundos, a diferencia de detail.lastSeenFormatted (fecha+hora cruda del servidor,
+// "dd-MM-yyyy HH:mm:ss") -- ver LastSeenLine. Reformatea lastSeenAt (el Instant ya resuelto, ver
+// AssetDetailMapper) en vez de recortar el string crudo, así no depende de que el servidor
+// mantenga exactamente ese patrón.
+private val LAST_SEEN_DATE_TIME_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm").withZone(ZoneId.systemDefault())
 
 /** Pestaña "Resumen": métricas superiores, bloque de ubicación y "HOY". Siempre visible. */
 @Composable
@@ -334,12 +341,14 @@ private fun LastSeenLine(detail: AssetDetail, freshness: LastSeenFreshness) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = "${detail.lastSeenFormatted ?: "-"} · ${relativeLastSeenText(detail.lastSeenAt)}",
+            text = "${detail.lastSeenAt.toLastSeenDateTimeText()} · ${relativeLastSeenText(detail.lastSeenAt)}",
             style = MaterialTheme.typography.bodyMedium,
             color = freshness.toColor()
         )
     }
 }
+
+private fun Instant?.toLastSeenDateTimeText(): String = this?.let { LAST_SEEN_DATE_TIME_FORMAT.format(it) } ?: "-"
 
 @Composable
 private fun CopyButton(value: String) {
@@ -415,9 +424,10 @@ private fun StatTile(stat: UnitStat, maxValue: Double?, modifier: Modifier = Mod
                 // Lista dinámica (ver comentario de arriba) -- puede traer "speed_max" con la
                 // unidad pegada ("16 kph"), confirmado contra un payload real. normalizeSpeedUnitSuffix
                 // es un no-op seguro para cualquier stat que no termine en una unidad de velocidad.
-                // Las claves de duración (drive_duration, stop_duration...) van por
-                // formatDurationCompact en vez de mostrarse crudas con segundos.
-                text = if (isDurationStatKey(stat.key)) {
+                // Las duraciones (drive_duration, stop_duration, engine_hours...) van por
+                // formatDurationCompact en vez de mostrarse crudas con segundos -- ver
+                // core/format/DurationFormat.kt.isDurationStat.
+                text = if (isDurationStat(stat.key, stat.value)) {
                     formatDurationCompact(stat.value)
                 } else {
                     stat.value?.let(::normalizeSpeedUnitSuffix) ?: "-"

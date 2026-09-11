@@ -44,7 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.format.formatDurationCompact
-import pe.soltelematic.mobile.core.format.isDurationStatKey
+import pe.soltelematic.mobile.core.format.isDurationStat
 import pe.soltelematic.mobile.core.format.normalizeSpeedUnit
 import pe.soltelematic.mobile.core.format.sumDurationsCompact
 import pe.soltelematic.mobile.domain.model.GeoPoint
@@ -258,11 +258,11 @@ private fun ExtraStatsSection(stats: List<UnitStat>) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
                             )
-                            // Dinámico (ver comentario de arriba): cualquier key "*_duration" que
-                            // el servidor agregue mañana también pierde los segundos, sin listar
-                            // claves a mano -- ver core/format/DurationFormat.kt.
+                            // Dinámico (ver comentario de arriba): cualquier duración que el
+                            // servidor agregue mañana también pierde los segundos, sin listar
+                            // claves a mano -- ver core/format/DurationFormat.kt.isDurationStat.
                             Text(
-                                text = if (isDurationStatKey(stat.key)) {
+                                text = if (isDurationStat(stat.key, stat.value)) {
                                     formatDurationCompact(stat.value)
                                 } else {
                                     stat.value ?: "-"

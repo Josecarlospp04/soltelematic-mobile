@@ -42,14 +42,23 @@ private fun formatSecondsCompact(totalSeconds: Long): String {
     return if (hours > 0) "%dh %02d".format(hours, minutes) else "$minutes min"
 }
 
+// "H:MM:SS" o "MM:SS" -- misma tolerancia que parseDurationSeconds.
+private val DURATION_VALUE_PATTERN = Regex("""^\d{1,3}:\d{2}(:\d{2})?$""")
+
 /**
- * true si esta key de UnitStat es una duración ("duration", "drive_duration", "stop_duration",
- * y cualquier otra que el servidor agregue con el mismo sufijo -- los stats son dinámicos, ver
- * HistoryStatDto, así que esto se detecta por patrón y no por una lista cerrada). Mismo criterio
- * de heurística sobre key/title que ya usa statTileColor en SummaryTab.kt.
+ * true si esta key/value de UnitStat es una duración ("duration", "drive_duration",
+ * "stop_duration", y cualquier otra key con ese sufijo -- los stats son dinámicos, ver
+ * HistoryStatDto). Además de la key, también se acepta por FORMA del valor (H:MM:SS/MM:SS): un
+ * payload real trajo {"key":"engine_hours","title":"Horas del motor","value":"06:02:59"}, que no
+ * termina en "_duration" y se pintaba crudo con segundos. Ningún otro stat de este endpoint usa
+ * ":" en su valor (unidad pegada al número: "17 kph", "17.58 Km"; conductor es texto libre o
+ * "-"), así que cualquier key nueva con este mismo formato de valor queda cubierta sin listarla a
+ * mano. Mismo criterio de heurística sobre key/title que ya usa statTileColor en SummaryTab.kt.
  */
-fun isDurationStatKey(key: String?): Boolean =
-    key == "duration" || key?.endsWith("_duration") == true
+fun isDurationStat(key: String?, value: String?): Boolean =
+    key == "duration" ||
+        key?.endsWith("_duration") == true ||
+        (value != null && DURATION_VALUE_PATTERN.matches(value.trim()))
 
 /**
  * "HH:MM:SS" (formato real del servidor) a segundos totales; tolera "MM:SS" por si alguna vez
