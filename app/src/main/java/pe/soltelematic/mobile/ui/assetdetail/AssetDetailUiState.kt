@@ -4,6 +4,7 @@ import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.domain.model.AssetDetail
 import pe.soltelematic.mobile.domain.model.DeviceCommand
 import pe.soltelematic.mobile.domain.model.UnitStat
+import pe.soltelematic.mobile.domain.model.VolumeUnit
 
 /**
  * address, todayStats y commands tienen su propio par de carga/dato, separado de isLoading/error
@@ -23,7 +24,10 @@ data class AssetDetailUiState(
     val todayStats: List<UnitStat> = emptyList(),
     val isCommandsLoading: Boolean = true,
     val commands: List<DeviceCommand> = emptyList(),
-    val sendingCommandType: String? = null
+    val sendingCommandType: String? = null,
+    // Reflejo de UserPreferencesDataStore.volumeUnit, litros por defecto -- solo lo usa la pestaña
+    // Sensores (ver SensorsTab), para convertir localmente los sensores de volumen.
+    val volumeUnit: VolumeUnit = VolumeUnit.LITERS
 )
 
 /**

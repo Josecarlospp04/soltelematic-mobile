@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
+import pe.soltelematic.mobile.domain.model.VolumeUnit
 import pe.soltelematic.mobile.domain.repository.AssetRepository
 import pe.soltelematic.mobile.domain.repository.AuthRepository
 
@@ -46,6 +47,17 @@ class AccountViewModel(
             // Ya cacheado en Room -- observeAssets() es el espejo local, no dispara red nueva.
             val unitCount = assetRepository.observeAssets().first().size
             _uiState.update { it.copy(unitCount = unitCount, isLoading = false) }
+        }
+        viewModelScope.launch {
+            userPreferences.volumeUnit.collect { unit ->
+                _uiState.update { it.copy(volumeUnit = unit) }
+            }
+        }
+    }
+
+    fun onVolumeUnitSelected(unit: VolumeUnit) {
+        viewModelScope.launch {
+            userPreferences.setVolumeUnit(unit)
         }
     }
 

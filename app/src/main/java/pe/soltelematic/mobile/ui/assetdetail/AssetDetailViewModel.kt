@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pe.soltelematic.mobile.core.result.ApiResult
+import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.SendCommandOutcome
 import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
@@ -22,7 +23,8 @@ import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
  */
 class AssetDetailViewModel(
     private val assetId: Int,
-    private val assetDetailRepository: AssetDetailRepository
+    private val assetDetailRepository: AssetDetailRepository,
+    private val userPreferences: UserPreferencesDataStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AssetDetailUiState())
@@ -37,6 +39,11 @@ class AssetDetailViewModel(
         // assetId, así que arranca en paralelo, en su propia corrutina.
         loadTodayStats()
         loadCommands()
+        viewModelScope.launch {
+            userPreferences.volumeUnit.collect { unit ->
+                _uiState.update { it.copy(volumeUnit = unit) }
+            }
+        }
     }
 
     fun onRetry() {

@@ -29,6 +29,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,10 +58,12 @@ import org.koin.androidx.compose.koinViewModel
 import pe.soltelematic.mobile.BuildConfig
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.network.serverRootUrl
+import pe.soltelematic.mobile.domain.model.VolumeUnit
 import pe.soltelematic.mobile.ui.theme.BrandLogo
 import pe.soltelematic.mobile.ui.theme.DefaultBrandSupportWhatsAppNumber
 import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
+import pe.soltelematic.mobile.ui.theme.SoltelematicPillShape
 import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
 import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
@@ -119,6 +123,11 @@ fun AccountScreen(
                 }
             } else {
                 ProfileCard(uiState)
+                Spacer(modifier = Modifier.height(SoltelematicSpacing.xl))
+                UnitsSection(
+                    volumeUnit = uiState.volumeUnit,
+                    onVolumeUnitSelected = viewModel::onVolumeUnitSelected
+                )
                 Spacer(modifier = Modifier.height(SoltelematicSpacing.xl))
                 SupportSection(
                     onWhatsAppUnavailable = {
@@ -185,6 +194,66 @@ private fun AccountAvatar(email: String?) {
             color = MaterialTheme.colorScheme.onPrimary
         )
     }
+}
+
+/**
+ * Preferencia de unidad de volumen para los sensores de tanque de la ficha (ver SensorsTab):
+ * litros o galones, persistida en UserPreferencesDataStore.volumeUnit. Solo dos opciones -- un
+ * FilterChip por opción (mismo componente y estilo que AssetFilterChipsRow) evita el chrome de un
+ * menú desplegable para una elección tan chica.
+ */
+@Composable
+private fun UnitsSection(volumeUnit: VolumeUnit, onVolumeUnitSelected: (VolumeUnit) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.account_units_section_title).uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = LocalSoltelematicColors.current.inkFaint,
+            modifier = Modifier.padding(bottom = SoltelematicSpacing.sm)
+        )
+        Text(
+            text = stringResource(R.string.account_volume_unit_label),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = SoltelematicSpacing.sm)
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)) {
+            VolumeUnitChip(
+                label = stringResource(R.string.account_volume_unit_liters),
+                selected = volumeUnit == VolumeUnit.LITERS,
+                onClick = { onVolumeUnitSelected(VolumeUnit.LITERS) }
+            )
+            VolumeUnitChip(
+                label = stringResource(R.string.account_volume_unit_gallons),
+                selected = volumeUnit == VolumeUnit.GALLONS,
+                onClick = { onVolumeUnitSelected(VolumeUnit.GALLONS) }
+            )
+        }
+    }
+}
+
+/** Mismos colores/forma que AssetFilterChipsRow (AssetListControls.kt) -- un solo estilo de chip en toda la app. */
+@Composable
+private fun VolumeUnitChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+        shape = SoltelematicPillShape,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+            selectedLabelColor = MaterialTheme.colorScheme.surface
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = MaterialTheme.colorScheme.outline,
+            selectedBorderColor = MaterialTheme.colorScheme.onSurface
+        ),
+        modifier = Modifier.heightIn(min = SoltelematicMinTouchTarget)
+    )
 }
 
 /**

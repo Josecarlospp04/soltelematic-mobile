@@ -18,7 +18,7 @@ val viewModelModule = module {
     viewModel { AccountViewModel(get(), get(), get()) }
     // assetId llega por parametersOf desde koinViewModel (ver AssetDetailScreen), no por get():
     // es un argumento de navegación, no una dependencia inyectable.
-    viewModel { (assetId: Int) -> AssetDetailViewModel(assetId, get()) }
+    viewModel { (assetId: Int) -> AssetDetailViewModel(assetId, get(), get()) }
     viewModel { (assetId: Int) -> HistoryViewModel(assetId, get()) }
     viewModel { EventsViewModel(get(), get(), get()) }
     viewModel { UnitsViewModel(get()) }

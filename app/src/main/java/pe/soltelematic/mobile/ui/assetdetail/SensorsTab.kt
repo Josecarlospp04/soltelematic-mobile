@@ -26,7 +26,9 @@ import coil.ImageLoader
 import coil.compose.AsyncImage
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.core.format.convertVolumeForDisplay
 import pe.soltelematic.mobile.domain.model.AssetSensor
+import pe.soltelematic.mobile.domain.model.VolumeUnit
 import pe.soltelematic.mobile.ui.theme.SoltelematicElevation
 import pe.soltelematic.mobile.ui.theme.SoltelematicIconSpec
 import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
@@ -34,10 +36,12 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 /**
  * Cada sensor tal como llega: sin agrupar por type todavía (el contrato del sprint solo pide
- * icono + nombre + valor + un contador al final, no tratamiento visual por tipo).
+ * icono + nombre + valor + un contador al final, no tratamiento visual por tipo). volumeUnit solo
+ * afecta sensores de volumen (ver convertVolumeForDisplay) -- cualquier otro sensor ("13.06 vts",
+ * "2165 km", "OFF") se pinta exactamente como llegó del servidor.
  */
 @Composable
-fun SensorsTab(sensors: List<AssetSensor>, modifier: Modifier = Modifier) {
+fun SensorsTab(sensors: List<AssetSensor>, volumeUnit: VolumeUnit, modifier: Modifier = Modifier) {
     // Mismo ImageLoader que usa el mapa para los iconos de marcador (ver MapModule): un solo
     // caché de Coil para toda la app, no uno nuevo por pantalla.
     val imageLoader = koinInject<ImageLoader>()
@@ -49,7 +53,7 @@ fun SensorsTab(sensors: List<AssetSensor>, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs)
         ) {
             items(sensors, key = { it.id }) { sensor ->
-                SensorRow(sensor = sensor, imageLoader = imageLoader)
+                SensorRow(sensor = sensor, volumeUnit = volumeUnit, imageLoader = imageLoader)
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -65,7 +69,7 @@ fun SensorsTab(sensors: List<AssetSensor>, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SensorRow(sensor: AssetSensor, imageLoader: ImageLoader) {
+private fun SensorRow(sensor: AssetSensor, volumeUnit: VolumeUnit, imageLoader: ImageLoader) {
     Card(
         shape = SoltelematicShapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -103,7 +107,7 @@ private fun SensorRow(sensor: AssetSensor, imageLoader: ImageLoader) {
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = sensor.value ?: "-",
+                text = sensor.value?.let { convertVolumeForDisplay(it, volumeUnit) } ?: "-",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )

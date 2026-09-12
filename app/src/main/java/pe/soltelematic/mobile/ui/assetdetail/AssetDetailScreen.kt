@@ -225,7 +225,11 @@ private fun AssetDetailContent(detail: AssetDetail, uiState: AssetDetailUiState)
                 isTodayStatsLoading = uiState.isTodayStatsLoading,
                 modifier = Modifier.weight(1f)
             )
-            AssetDetailTab.SENSORS -> SensorsTab(sensors = detail.sensors, modifier = Modifier.weight(1f))
+            AssetDetailTab.SENSORS -> SensorsTab(
+                sensors = detail.sensors,
+                volumeUnit = uiState.volumeUnit,
+                modifier = Modifier.weight(1f)
+            )
             AssetDetailTab.SERVICES -> GenericFieldsTab(sections = detail.services, modifier = Modifier.weight(1f))
             AssetDetailTab.DRIVER -> GenericFieldsTab(
                 sections = listOfNotNull(detail.driver),
