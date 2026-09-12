@@ -67,7 +67,7 @@ o desde Android Studio, con un dispositivo/emulador conectado.
 
 ### Parches necesarios en el servidor GPSWOX
 
-Estos tres parches se aplicaron directamente sobre la instalación de GPSWOX que usa SOLTELEMATIC — **no son parte de este repo** ni de la app Android, viven del lado del servidor. Si usás tu propia instancia de GPSWOX vas a necesitar los mismos, y **hay que volver a aplicarlos después de cada actualización de la plataforma GPSWOX**, porque el proceso de actualización sobrescribe estos archivos y no los conserva.
+Estos cinco parches se aplicaron directamente sobre la instalación de GPSWOX que usa SOLTELEMATIC — **no son parte de este repo** ni de la app Android, viven del lado del servidor. Si usás tu propia instancia de GPSWOX vas a necesitar los mismos, y **hay que volver a aplicarlos después de cada actualización de la plataforma GPSWOX**, porque el proceso de actualización sobrescribe estos archivos y no los conserva.
 
 **1. Passthrough de la cabecera `Authorization` en `.htaccess`**
 
@@ -93,6 +93,72 @@ La respuesta de `/user` no incluía el `id` del usuario, que la app necesita per
 **3. `subscription_expiration` en cero en la cuenta de pruebas**
 
 La cuenta de pruebas tenía la fecha de expiración de suscripción sin configurar (devolvía cero/vacío). Se corrigió asignando una fecha de expiración válida a esa cuenta directamente en la base de datos de GPSWOX.
+
+**4. POST `geofences` en la API móvil**
+
+El endpoint `geofences/map` (lectura) ya existía, pero no había forma de guardar una geocerca nueva desde el celular.
+
+En `routes/app.php`, dentro del mismo grupo que `geofences/map`:
+
+```php
+Route::post('geofences', ['uses' => 'GeofencesController@store']);
+```
+
+En `app/Http/Controllers/Api/ClientLite/GeofencesController.php`:
+
+```php
+public function store(Request $request)
+{
+    $service = app(\Tobuli\Services\GeofenceService::class);
+    $geofence = $service->create($request->all() + ['user_id' => $this->user->id]);
+
+    return response()->json(
+        ['status' => 1] +
+        $this->transformerService->item($geofence, GeofenceTransformer::class)->toArray()
+    );
+}
+```
+
+> **CRÍTICO:** el `+ ['user_id' => $this->user->id]` es obligatorio. Sin él las geocercas se crean con `user_id` NULL, no pertenecen a nadie y no aparecen en la plataforma web aunque la API responda 200.
+
+**5. DELETE `geofences/{id}` en la API móvil**
+
+En `routes/app.php`:
+
+```php
+Route::delete('geofences/{id}', ['uses' => 'GeofencesController@destroy']);
+```
+
+El `afterAuth` del mismo controlador pasa a ser:
+
+```php
+protected function afterAuth($user)
+{
+    $action = match (request()->method()) { 'POST' => 'store', 'DELETE' => 'view', default => 'view' };
+    $this->checkException('geofences', $action);
+}
+```
+
+Y el método:
+
+```php
+public function destroy($id)
+{
+    $geofence = Geofence::userOwned($this->user)->find($id);
+
+    if (!$geofence) {
+        return response()->json(['status' => 0, 'message' => 'Not found'], 404);
+    }
+
+    app(\Tobuli\Services\GeofenceService::class)->delete($geofence);
+
+    return response()->json(['status' => 1, 'id' => (int) $id]);
+}
+```
+
+> Se usa el permiso `'view'` para DELETE en vez de `'edit'` porque `checkException` con `'edit'` requiere pasar el modelo y falla al resolverlo. La propiedad queda protegida por `userOwned()`, que impide borrar geocercas de otras cuentas.
+
+Después de aplicar el parche 4 o el 5: `php artisan route:clear && php artisan config:clear`.
 
 ### Generar un APK de release firmado
 
@@ -145,8 +211,15 @@ En desarrollo activo. Completo hasta la fecha:
 - Bandeja de alertas con badge de no vistos
 - Pantalla de Unidades: listado alfabético de toda la flota, independiente del mapa
 - Sistema de diseño con tokens propios y soporte white-label
+- Enlaces de soporte en Cuenta (plataforma web y WhatsApp)
+- Selector de tipo de mapa (normal, satélite, híbrido, terreno) con persistencia
+- Reproducción animada del recorrido en Historial (play/pausa, scrubber, 1×/2×/4×/8×)
+- Envío de comandos GPRS a las unidades, con formulario dinámico según lo que declare el servidor
+- Creación de geocercas desde el mapa (polígono por puntos o círculo con centro y radio)
+- Borrado de geocercas desde la app
+- Preferencia de unidad de volumen (litros/galones) con conversión local en la vista de sensores
 
-**Fuera de alcance por ahora:** comandos a las unidades (fila visible pero deshabilitada en la ficha), URL de servidor configurable en runtime (ver nota arriba).
+**Fuera de alcance por ahora:** URL de servidor configurable en runtime (ver nota arriba).
 
 ## Stack técnico
 
