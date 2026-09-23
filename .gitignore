@@ -7,6 +7,10 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+# Resto de configuracion local de Android Studio: solo se versionan los
+# archivos de .idea/ que ya estan listados arriba, el resto es del equipo
+# de cada quien y genera ruido en los commits.
+/.idea/
 .DS_Store
 /build
 /captures
