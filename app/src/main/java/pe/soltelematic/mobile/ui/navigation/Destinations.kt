@@ -14,6 +14,7 @@ sealed class Destination(val route: String) {
     data object Units : Destination("units")
     data object Account : Destination("account")
     data object Events : Destination("events")
+    data object Reports : Destination("reports")
     data object AssetDetail : Destination("asset/{$ASSET_ID_ARG}") {
         const val ARG_ID = ASSET_ID_ARG
         fun createRoute(assetId: Int) = "asset/$assetId"

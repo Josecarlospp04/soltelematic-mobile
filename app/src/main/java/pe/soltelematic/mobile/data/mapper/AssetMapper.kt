@@ -64,7 +64,7 @@ fun AssetEntity.toDomain(): Asset = Asset(
     icon = AssetIcon(
         url = iconUrl,
         colorHex = iconColor,
-        courseDegrees = iconCourse ?: 0f
+        courseDegrees = iconCourse
     ),
     tail = tail.map { GeoPoint(it.lat, it.lng) },
     tailColorHex = tailColor,

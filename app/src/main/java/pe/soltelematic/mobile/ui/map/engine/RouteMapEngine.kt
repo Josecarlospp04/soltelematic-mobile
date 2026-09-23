@@ -2,7 +2,9 @@ package pe.soltelematic.mobile.ui.map.engine
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import pe.soltelematic.mobile.domain.model.AssetIcon
 import pe.soltelematic.mobile.domain.model.GeoPoint
+import pe.soltelematic.mobile.domain.model.MapType
 
 /**
  * Contrato separado de MapEngine (Sprint 1): esa abstracción es específica de clustering de
@@ -59,9 +61,30 @@ interface RouteMapEngine {
         // través del tipo de interfaz -- confirmado en dispositivo). Todo caller, incluidos los
         // previews, pasa estos dos parámetros explícitos.
         playbackPoint: GeoPoint?,
+        // Rumbo del punto actual de reproducción (ver HistoryRouteMapMapper.toBearings), en
+        // grados 0..360 con 0 = norte -- el servidor no lo manda en el historial, se calcula en la
+        // app. Se ignora si playbackPoint es null (no hay reproducción en curso). Sin valor por
+        // defecto, mismo motivo que playbackPoint: ver nota de abajo.
+        playbackBearing: Float,
+        // Icono real de la unidad (el mismo AssetIcon que ya resuelve el mapa en vivo desde Room,
+        // ver AssetRepository) -- null mientras el asset todavía no llegó a Room o no se encontró,
+        // tratado igual que "sin icono propio". Junto con playbackBearing decide cómo se dibuja el
+        // marcador de reproducción (ver GoogleRouteMapEngine):
+        //   A) url != null && courseDegrees != null (icono "rotating"): el PNG de la unidad,
+        //      rotado con playbackBearing.
+        //   B) url != null && courseDegrees == null (icono "icon", pin de gota -- nunca rota, ver
+        //      AssetIcon.courseDegrees): el PNG fijo, más una flecha propia aparte que sí rota.
+        //   C) url == null (o el PNG todavía no cargó): una flecha propia sola, color primary --
+        //      reemplaza al círculo plano que había antes y que no comunicaba dirección.
+        unitIcon: AssetIcon?,
         // Se dispara la primera vez que el usuario arrastra el mapa a mano (GESTURE, nunca por
         // centerOn/moveInstantly propios del engine) -- HistoryScreen lo usa para dejar de mover
         // la cámara detrás del marcador en cuanto el usuario le pelea el gesto.
-        onCameraGesture: () -> Unit
+        onCameraGesture: () -> Unit,
+        // Espejo de la preferencia global (UserPreferencesDataStore.mapType, compartida con el
+        // mapa en vivo) -- ver HistoryUiState.mapType. Sin valor por defecto, mismo motivo que
+        // playbackPoint arriba: un default acá no genera el bridge $default en un miembro
+        // @Composable de interfaz.
+        mapType: MapType
     )
 }

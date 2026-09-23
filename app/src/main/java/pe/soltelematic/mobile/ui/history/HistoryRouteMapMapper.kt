@@ -11,6 +11,7 @@ import pe.soltelematic.mobile.ui.map.engine.RouteMarkerRole
 import pe.soltelematic.mobile.ui.map.engine.RoutePoint
 import pe.soltelematic.mobile.ui.map.engine.RoutePolyline
 import kotlin.math.asin
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -129,6 +130,78 @@ fun HistoryRoute.toPlaybackPoints(): List<HistoryPlaybackPoint> =
     legs.withIndex().flatMap { (index, leg) ->
         if (leg !is HistoryDriveLeg) emptyList() else leg.positions.map { HistoryPlaybackPoint(index, it) }
     }
+
+// Distancia mínima entre el punto evaluado y el punto usado para calcularle el rumbo (ver
+// toBearings más abajo). El servidor no manda rumbo en el historial (HistoryTransformer solo
+// entrega id/t/s/c/lat/lng por posición), así que se calcula acá con atan2 entre dos posiciones --
+// pero contra el punto INMEDIATO siguiente no alcanza: con la unidad detenida el GPS sigue
+// derivando unos pocos metros de un fix al siguiente por ruido de la señal, y ese ruido produce un
+// atan2 que salta de un extremo a otro sin que la unidad haya girado nada. Comparar contra el
+// primer punto que esté a esta distancia o más filtra ese ruido sin perder los giros reales (que sí
+// desplazan al vehículo bastante más que esto en el tiempo entre dos fixes consecutivos).
+private const val MIN_BEARING_DISTANCE_METERS = 15.0
+
+/**
+ * Rumbo inicial (0..360, 0 = norte, sentido horario) de [from] hacia [to] -- fórmula estándar de
+ * "initial bearing" sobre una esfera vía atan2, para cubrir los cuatro cuadrantes sin ambigüedad.
+ */
+fun bearingDegrees(from: GeoPoint, to: GeoPoint): Float {
+    val lat1 = Math.toRadians(from.lat)
+    val lat2 = Math.toRadians(to.lat)
+    val deltaLng = Math.toRadians(to.lng - from.lng)
+    val y = sin(deltaLng) * cos(lat2)
+    val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(deltaLng)
+    val degrees = Math.toDegrees(atan2(y, x))
+    return ((degrees + 360.0) % 360.0).toFloat()
+}
+
+/**
+ * Un rumbo por punto de reproducción (lista paralela a esta), calculado UNA sola vez por
+ * recorrido cargado -- nunca en cada tick de la reproducción. El loop de
+ * HistoryViewModel.startPlayback avanza hasta 40 veces por segundo (ver BASE_STEP_DELAY_MS /
+ * VISUAL_UPDATE_INTERVAL_MS ahí, y el comentario de jank medido en esta pantalla), y
+ * GoogleRouteMapEngine ya tuvo que resolver un problema parecido con Douglas-Peucker corriendo en
+ * cada tick del marcador (ver renderableRuns/selectedPolyline ahí): recalcular atan2 sobre miles
+ * de puntos en cada frame repetiría el mismo error. Acá se paga una sola vez, al cargar la ruta.
+ *
+ * Se calcula por tramo (agrupado por legIndex, ya contiguos en esta lista -- ver
+ * HistoryRoute.toPlaybackPoints), nunca cruzando de un tramo a otro: el marcador salta de golpe
+ * del último punto de un viaje al primero del siguiente (sin traza real entre medio, puede haber
+ * una parada de horas ahí), así que un rumbo calculado contra el punto de otro tramo no
+ * describiría ningún giro real de la unidad.
+ */
+fun List<HistoryPlaybackPoint>.toBearings(): List<Float> {
+    if (isEmpty()) return emptyList()
+    val bearings = FloatArray(size)
+    var runStart = 0
+    for (i in 1..size) {
+        if (i == size || this[i].legIndex != this[runStart].legIndex) {
+            fillRunBearings(runStart, i, bearings)
+            runStart = i
+        }
+    }
+    return bearings.toList()
+}
+
+private fun List<HistoryPlaybackPoint>.fillRunBearings(start: Int, end: Int, out: FloatArray) {
+    var lastValid: Float? = null
+    for (i in start until end) {
+        val origin = this[i].position.point
+        val targetIndex = ((i + 1) until end).firstOrNull {
+            distanceMeters(origin, this[it].position.point) >= MIN_BEARING_DISTANCE_METERS
+        }
+        val bearing = targetIndex?.let { bearingDegrees(origin, this[it].position.point) }
+        // Sin ningún punto por delante a distancia suficiente (fin del tramo, o una parada
+        // acercándose con puntos muy juntos): conserva el último rumbo válido en vez de saltar a
+        // 0 -- 0 (norte) no tendría ningún significado acá, sería un giro inventado que no ocurrió.
+        // Al principio de un tramo, antes de tener algún rumbo válido calculado todavía, no queda
+        // otra que asumir norte por un instante: en la práctica el primer punto de un "drive" ya
+        // tiene movimiento real por delante casi siempre, así que ese caso es la excepción, no la
+        // regla.
+        out[i] = bearing ?: lastValid ?: 0f
+        if (bearing != null) lastValid = bearing
+    }
+}
 
 private fun isRoundTripAtSameStop(firstLeg: HistoryLeg?, lastLeg: HistoryLeg?): Boolean {
     if (firstLeg !is HistoryStopLeg || lastLeg !is HistoryStopLeg || firstLeg === lastLeg) return false

@@ -9,6 +9,7 @@ import pe.soltelematic.mobile.ui.forgot.ForgotPasswordViewModel
 import pe.soltelematic.mobile.ui.history.HistoryViewModel
 import pe.soltelematic.mobile.ui.login.LoginViewModel
 import pe.soltelematic.mobile.ui.map.MapViewModel
+import pe.soltelematic.mobile.ui.reports.ReportsViewModel
 import pe.soltelematic.mobile.ui.units.UnitsViewModel
 
 val viewModelModule = module {
@@ -18,8 +19,9 @@ val viewModelModule = module {
     viewModel { AccountViewModel(get(), get(), get()) }
     // assetId llega por parametersOf desde koinViewModel (ver AssetDetailScreen), no por get():
     // es un argumento de navegación, no una dependencia inyectable.
-    viewModel { (assetId: Int) -> AssetDetailViewModel(assetId, get(), get()) }
-    viewModel { (assetId: Int) -> HistoryViewModel(assetId, get()) }
+    viewModel { (assetId: Int) -> AssetDetailViewModel(assetId, get(), get(), get()) }
+    viewModel { (assetId: Int) -> HistoryViewModel(assetId, get(), get(), get()) }
     viewModel { EventsViewModel(get(), get(), get()) }
     viewModel { UnitsViewModel(get()) }
+    viewModel { ReportsViewModel(get(), get()) }
 }

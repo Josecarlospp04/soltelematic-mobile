@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,14 +38,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.ImageLoader
+import coil.compose.AsyncImage
 import java.time.Duration
 import java.time.Instant
 import kotlin.math.roundToInt
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.format.normalizeSpeedUnit
 import pe.soltelematic.mobile.core.format.normalizeSpeedUnitSuffix
@@ -63,6 +68,7 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
 import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 private val EmptyStateIconSize = 40.dp
+private val UnitIconSize = 32.dp
 private val StatusRailWidth = 3.dp
 private val SkeletonRowCount = 6
 private val SkeletonLineHeight = 16.dp
@@ -86,6 +92,9 @@ fun UnitsScreen(
     viewModel: UnitsViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    // Mismo ImageLoader que usa el mapa/SensorsTab para los iconos (ver MapModule): un solo
+    // caché de Coil para toda la app, no uno nuevo por pantalla.
+    val imageLoader = koinInject<ImageLoader>()
 
     // Mismo criterio que MapScreen.visibleFilters/filterCounts: "Bloqueadas" solo aparece si hay
     // al menos una unidad bloqueada, y los conteos son sobre TODA la flota (uiState.assets), no
@@ -157,7 +166,7 @@ fun UnitsScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(uiState.visibleAssets, key = { it.id }) { asset ->
-                        UnitRow(asset = asset, onClick = { onOpenAssetDetail(asset.id) })
+                        UnitRow(asset = asset, imageLoader = imageLoader, onClick = { onOpenAssetDetail(asset.id) })
                     }
                 }
             }
@@ -171,7 +180,7 @@ fun UnitsScreen(
  * Row(IntrinsicSize.Min) para que el riel llene el alto real de la fila, no una altura fija.
  */
 @Composable
-private fun UnitRow(asset: Asset, onClick: () -> Unit) {
+private fun UnitRow(asset: Asset, imageLoader: ImageLoader, onClick: () -> Unit) {
     val colors = LocalSoltelematicColors.current
     val (statusColor, _) = statusPillColors(asset.status.type, colors)
     Surface(
@@ -196,6 +205,22 @@ private fun UnitRow(asset: Asset, onClick: () -> Unit) {
                     .weight(1f)
                     .padding(SoltelematicSpacing.md)
             ) {
+                if (asset.icon.url != null) {
+                    AsyncImage(
+                        model = asset.icon.url,
+                        imageLoader = imageLoader,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(UnitIconSize)
+                    )
+                } else {
+                    // Sin icono asignado en la plataforma web (tipo "arrow" o sin icono, ver
+                    // contrato): el riel de color de estado a la izquierda ya comunica el estado,
+                    // así que acá se deja el hueco vacío en vez de dibujar un punto redundante --
+                    // el Spacer solo reserva el espacio para que los nombres de todas las filas
+                    // queden alineados.
+                    Spacer(Modifier.size(UnitIconSize))
+                }
                 Column(
                     verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs),
                     modifier = Modifier.weight(1f)

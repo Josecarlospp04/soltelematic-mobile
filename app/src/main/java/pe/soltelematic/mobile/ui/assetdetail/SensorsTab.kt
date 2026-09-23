@@ -11,7 +11,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Battery4Bar
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.SatelliteAlt
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.SensorDoor
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
@@ -21,10 +36,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
-import coil.ImageLoader
-import coil.compose.AsyncImage
-import org.koin.compose.koinInject
+import java.text.Normalizer
+import java.util.Locale
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.format.convertVolumeForDisplay
 import pe.soltelematic.mobile.domain.model.AssetSensor
@@ -42,10 +57,6 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
  */
 @Composable
 fun SensorsTab(sensors: List<AssetSensor>, volumeUnit: VolumeUnit, modifier: Modifier = Modifier) {
-    // Mismo ImageLoader que usa el mapa para los iconos de marcador (ver MapModule): un solo
-    // caché de Coil para toda la app, no uno nuevo por pantalla.
-    val imageLoader = koinInject<ImageLoader>()
-
     Column(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -53,7 +64,7 @@ fun SensorsTab(sensors: List<AssetSensor>, volumeUnit: VolumeUnit, modifier: Mod
             verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs)
         ) {
             items(sensors, key = { it.id }) { sensor ->
-                SensorRow(sensor = sensor, volumeUnit = volumeUnit, imageLoader = imageLoader)
+                SensorRow(sensor = sensor, volumeUnit = volumeUnit)
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -69,7 +80,7 @@ fun SensorsTab(sensors: List<AssetSensor>, volumeUnit: VolumeUnit, modifier: Mod
 }
 
 @Composable
-private fun SensorRow(sensor: AssetSensor, volumeUnit: VolumeUnit, imageLoader: ImageLoader) {
+private fun SensorRow(sensor: AssetSensor, volumeUnit: VolumeUnit) {
     Card(
         shape = SoltelematicShapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -83,23 +94,16 @@ private fun SensorRow(sensor: AssetSensor, volumeUnit: VolumeUnit, imageLoader: 
                 .fillMaxWidth()
                 .padding(SoltelematicSpacing.sm)
         ) {
-            if (sensor.iconUrl != null) {
-                AsyncImage(
-                    model = sensor.iconUrl,
-                    imageLoader = imageLoader,
-                    contentDescription = null,
-                    modifier = Modifier.size(SoltelematicIconSpec.large)
-                )
-            } else {
-                // Sin icono propio (no debería pasar según el contrato, pero sensor.icon es nullable
-                // en el DTO): un ícono genérico en vez de dejar el hueco vacío.
-                Icon(
-                    Icons.Filled.Sensors,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(SoltelematicIconSpec.large)
-                )
-            }
+            // DeviceSensor::getIconAsset() en el servidor SIEMPRE arma una URL
+            // ("assets/icons/sensors_{tipo}_l.svg"), nunca null -- pero ese directorio no existe
+            // en /public del servidor, así que sensor.iconUrl da 404 sin excepción. Por eso el
+            // ícono es siempre este vectorial local mapeado por type, nunca el remoto.
+            Icon(
+                sensor.toFallbackIcon(),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(SoltelematicIconSpec.large)
+            )
             Text(
                 text = sensor.name ?: sensor.type ?: "-",
                 style = MaterialTheme.typography.bodyMedium,
@@ -114,3 +118,57 @@ private fun SensorRow(sensor: AssetSensor, volumeUnit: VolumeUnit, imageLoader: 
         }
     }
 }
+
+/**
+ * El type solo no alcanza para tres sensores reales de la flota: "BLOQUEO" es acc/ignition igual
+ * que IGNICION pero es un inmovilizador (candado, no llave), y "Bateria"/"RESPALDO" son ambos
+ * type battery pese a ser cosas distintas (voltaje externo del vehículo vs. batería interna del
+ * GPS) -- mismo problema que resuelve AlertEventType.fromAlertName para alertas custom, así que
+ * acá también el nombre gana cuando dice algo más concreto que el tipo.
+ *
+ * Tipos confirmados en la base de datos del servidor (battery..fuel_tank) más un segundo grupo
+ * (temperature..door) que existe en GPSWOX pero no se ha visto todavía en la flota actual -- se
+ * mapean igual para no repetir este trabajo cuando aparezcan en otro cliente. lowercase(Locale.ROOT)
+ * explícito: sin Locale, lowercase() usa el del dispositivo y en turco la I mayúscula no baja a
+ * "i" sino a "ı", con lo que un type en mayúsculas no matchearía.
+ */
+private fun AssetSensor.toFallbackIcon(): ImageVector {
+    val normalizedName = name?.normalizeForMatch()
+    when {
+        normalizedName == null -> Unit
+        normalizedName.containsAny("bloque", "inmovil") -> return Icons.Filled.Lock
+        normalizedName.containsAny("respaldo", "interna") -> return Icons.Filled.Battery4Bar
+        normalizedName.containsAny("externa", "externo") -> return Icons.Filled.BatteryChargingFull
+    }
+
+    return when (type?.lowercase(Locale.ROOT)) {
+        // "Bateria" en esta flota es el voltaje externo del vehículo, no la batería interna del
+        // equipo -- BatteryChargingFull en vez de BatteryFull para no confundirla con RESPALDO.
+        "battery" -> Icons.Filled.BatteryChargingFull
+        "gsm" -> Icons.Filled.SignalCellularAlt
+        "satellites" -> Icons.Filled.SatelliteAlt
+        "acc", "ignition" -> Icons.Filled.Key
+        "odometer" -> Icons.Filled.Speed
+        "engine" -> Icons.Filled.Settings
+        "engine_hours" -> Icons.Filled.Timer
+        "fuel_tank" -> Icons.Filled.LocalGasStation
+        "temperature" -> Icons.Filled.Thermostat
+        "voltage", "power", "external_power" -> Icons.Filled.ElectricBolt
+        "rpm" -> Icons.Filled.Speed
+        "gps" -> Icons.Filled.GpsFixed
+        "door" -> Icons.Filled.SensorDoor
+        else -> Icons.Filled.Sensors
+    }
+}
+
+// Mismo criterio que AlertEventType.normalizeForMatch/containsAny (domain/model/AlertEventType.kt):
+// sin un helper compartido en el proyecto para esto, se duplica en vez de acoplar dos features
+// por una función de 3 líneas.
+private fun String.normalizeForMatch(): String =
+    Normalizer.normalize(this, Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+        .lowercase(Locale.ROOT)
+        .trim()
+
+private fun String.containsAny(vararg needles: String): Boolean =
+    needles.any { this.contains(it) }

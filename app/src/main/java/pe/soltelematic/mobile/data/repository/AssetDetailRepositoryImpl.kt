@@ -5,10 +5,14 @@ import pe.soltelematic.mobile.core.network.IconUrlResolver
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.data.mapper.toDomain
 import pe.soltelematic.mobile.data.remote.api.AssetDetailApi
+import pe.soltelematic.mobile.data.mapper.toDto
 import pe.soltelematic.mobile.domain.model.AssetDetail
 import pe.soltelematic.mobile.domain.model.DeviceCommand
+import pe.soltelematic.mobile.domain.model.DeviceService
 import pe.soltelematic.mobile.domain.model.HistoryRoute
 import pe.soltelematic.mobile.domain.model.SendCommandOutcome
+import pe.soltelematic.mobile.domain.model.ServiceCreateForm
+import pe.soltelematic.mobile.domain.model.ServiceCreateRequest
 import pe.soltelematic.mobile.domain.model.UnitStat
 import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
 import java.time.LocalDate
@@ -76,6 +80,24 @@ class AssetDetailRepositoryImpl(
             }
         ) {
             is ApiResult.Success -> ApiResult.Success(result.data.data.map { it.toDomain() })
+            is ApiResult.Error -> result
+        }
+
+    override suspend fun getServices(id: Int): ApiResult<List<DeviceService>> =
+        when (val result = apiCallExecutor.execute { api.getServices(id) }) {
+            is ApiResult.Success -> ApiResult.Success(result.data.data.map { it.toDomain() })
+            is ApiResult.Error -> result
+        }
+
+    override suspend fun getServiceCreateForm(id: Int): ApiResult<ServiceCreateForm> =
+        when (val result = apiCallExecutor.execute { api.getServiceCreateForm(id) }) {
+            is ApiResult.Success -> ApiResult.Success(result.data.toDomain())
+            is ApiResult.Error -> result
+        }
+
+    override suspend fun createService(id: Int, request: ServiceCreateRequest): ApiResult<Unit> =
+        when (val result = apiCallExecutor.execute { api.createService(id, request.toDto()) }) {
+            is ApiResult.Success -> ApiResult.Success(Unit)
             is ApiResult.Error -> result
         }
 

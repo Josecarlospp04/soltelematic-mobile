@@ -49,8 +49,13 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
 import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 /**
- * Compartir: deshabilitado, sin destino todavía (sprint futuro). Historial ya navega a
- * ui/history/HistoryScreen (Sprint 2B). Comandos ya no es un gate -- ver CommandsSection.
+ * Compartir abre ShareLinkSheet (elegir duración -> generar -> copiar/compartir el enlace público
+ * de ubicación en vivo, ver SharingRepository). El sheet se abre/cierra con estado LOCAL de este
+ * Composable (isShareSheetOpen), igual que formCommand/pendingCommand en CommandsSection -- lo que
+ * pasa DENTRO del sheet (duración elegida, carga, enlace, error) sí vive en el ViewModel, porque
+ * implica una llamada de red (ver AssetDetailUiState.ShareLinkState, mismo criterio que
+ * sendingCommandType). Historial ya navega a ui/history/HistoryScreen (Sprint 2B). Comandos ya no
+ * es un gate -- ver CommandsSection.
  *
  * Este footer vive en el bottomBar del Scaffold de AssetDetailScreen -- Scaffold NO le agrega
  * ningún inset por su cuenta cuando hay topBar/bottomBar (da por hecho que cada uno se encarga del
@@ -70,8 +75,13 @@ fun DetailActionsFooter(
     isCommandsLoading: Boolean,
     sendingCommandType: String?,
     onSendCommand: (type: String, attributes: Map<String, String>) -> Unit,
+    shareLinkState: ShareLinkState,
+    onShareDurationSelected: (ShareDurationOption) -> Unit,
+    onGenerateShareLink: () -> Unit,
+    onShareSheetDismissed: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isShareSheetOpen by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -91,8 +101,7 @@ fun DetailActionsFooter(
                 Text(stringResource(R.string.asset_detail_action_history), style = MaterialTheme.typography.labelLarge)
             }
             OutlinedButton(
-                onClick = {},
-                enabled = false,
+                onClick = { isShareSheetOpen = true },
                 shape = SoltelematicShapes.small,
                 modifier = Modifier
                     .weight(1f)
@@ -106,6 +115,18 @@ fun DetailActionsFooter(
             isLoading = isCommandsLoading,
             sendingCommandType = sendingCommandType,
             onSendCommand = onSendCommand
+        )
+    }
+
+    if (isShareSheetOpen) {
+        ShareLinkSheet(
+            state = shareLinkState,
+            onDurationSelected = onShareDurationSelected,
+            onGenerateClick = onGenerateShareLink,
+            onDismiss = {
+                isShareSheetOpen = false
+                onShareSheetDismissed()
+            }
         )
     }
 }

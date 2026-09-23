@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Notifications
@@ -22,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
 
@@ -31,10 +33,11 @@ private enum class AppTab(val destination: Destination, val icon: ImageVector, v
     MAP(Destination.Map, Icons.Filled.Map, R.string.nav_tab_map),
     UNITS(Destination.Units, Icons.Filled.DirectionsCar, R.string.nav_tab_units),
     EVENTS(Destination.Events, Icons.Filled.Notifications, R.string.nav_tab_events),
+    REPORTS(Destination.Reports, Icons.Filled.Description, R.string.nav_tab_reports),
     ACCOUNT(Destination.Account, Icons.Filled.AccountCircle, R.string.nav_tab_account)
 }
 
-/** Rutas que muestran esta barra -- las 4 pestañas. Login/ForgotPassword/AssetDetail/History no la muestran. */
+/** Rutas que muestran esta barra -- las 5 pestañas. Login/ForgotPassword/AssetDetail/History no la muestran. */
 val AppBottomBarRoutes: Set<String> = AppTab.entries.map { it.destination.route }.toSet()
 
 /**
@@ -42,6 +45,12 @@ val AppBottomBarRoutes: Set<String> = AppTab.entries.map { it.destination.route 
  * extiende bajo la barra de navegación del sistema y reserva ese espacio solo mientras haga falta
  * (3 botones vs. gestos) -- ver SoltelematicNavHost para cómo se aloja. Sin indicador de "pill"
  * detrás del ícono seleccionado (no lo pide el mockup): solo cambia el color de ícono/etiqueta.
+ *
+ * maxLines/overflow en la etiqueta: con 5 pestañas (antes 4, ver Informes) cada ítem tiene menos
+ * ancho -- "Unidades" e "Informes" son las etiquetas más largas del set. En anchos típicos (>=360dp)
+ * entran en una sola línea sin recortarse; esto es una salvaguarda para pantallas más angostas,
+ * para que el texto se trunque con "…" en vez de envolver a una segunda línea y desalinear el
+ * ícono con la etiqueta del resto de pestañas.
  */
 @Composable
 fun AppBottomBar(currentRoute: String?, unseenEventsCount: Int, onNavigate: (Destination) -> Unit) {
@@ -67,7 +76,14 @@ fun AppBottomBar(currentRoute: String?, unseenEventsCount: Int, onNavigate: (Des
                         Icon(tab.icon, contentDescription = null)
                     }
                 },
-                label = { Text(stringResource(tab.labelRes), style = MaterialTheme.typography.labelSmall) },
+                label = {
+                    Text(
+                        text = stringResource(tab.labelRes),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,

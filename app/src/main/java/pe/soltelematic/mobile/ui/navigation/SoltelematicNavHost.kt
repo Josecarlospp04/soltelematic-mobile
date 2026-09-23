@@ -28,6 +28,7 @@ import pe.soltelematic.mobile.ui.forgot.ForgotPasswordScreen
 import pe.soltelematic.mobile.ui.history.HistoryScreen
 import pe.soltelematic.mobile.ui.login.LoginScreen
 import pe.soltelematic.mobile.ui.map.MapScreen
+import pe.soltelematic.mobile.ui.reports.ReportsScreen
 import pe.soltelematic.mobile.ui.units.UnitsScreen
 
 /**
@@ -157,6 +158,9 @@ fun SoltelematicNavHost(
                         navController.navigate(Destination.AssetDetail.createRoute(assetId))
                     }
                 )
+            }
+            composable(Destination.Reports.route) {
+                ReportsScreen()
             }
             composable(Destination.Account.route) {
                 AccountScreen(

@@ -4,13 +4,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import coil.ImageLoader
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.HistoryDriveLeg
 import pe.soltelematic.mobile.domain.model.HistoryEndpoint
 import pe.soltelematic.mobile.domain.model.HistoryPosition
 import pe.soltelematic.mobile.domain.model.HistoryRoute
 import pe.soltelematic.mobile.domain.model.HistoryStopLeg
+import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.ui.map.engine.RouteMapEngine
 import pe.soltelematic.mobile.ui.map.engine.google.GoogleRouteMapEngine
 import pe.soltelematic.mobile.ui.theme.SOLTELEMATICTheme
@@ -29,7 +32,8 @@ import pe.soltelematic.mobile.ui.theme.SOLTELEMATICTheme
 @Composable
 private fun HistoryRouteMapPreview() {
     val mapData = remember { sampleRoute().toRouteMapData() }
-    val engine: RouteMapEngine = remember { GoogleRouteMapEngine() }
+    val context = LocalContext.current
+    val engine: RouteMapEngine = remember { GoogleRouteMapEngine(ImageLoader.Builder(context).build()) }
 
     SOLTELEMATICTheme {
         val cameraController = engine.rememberCameraController()
@@ -41,7 +45,10 @@ private fun HistoryRouteMapPreview() {
             selectedLegIndex = 0,
             onMarkerClick = {},
             playbackPoint = null,
-            onCameraGesture = {}
+            playbackBearing = 0f,
+            unitIcon = null,
+            onCameraGesture = {},
+            mapType = MapType.NORMAL
         )
     }
 }

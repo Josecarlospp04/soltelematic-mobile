@@ -123,7 +123,11 @@ fun AssetDetailScreen(
                     commands = uiState.commands,
                     isCommandsLoading = uiState.isCommandsLoading,
                     sendingCommandType = uiState.sendingCommandType,
-                    onSendCommand = viewModel::onSendCommand
+                    onSendCommand = viewModel::onSendCommand,
+                    shareLinkState = uiState.shareLinkState,
+                    onShareDurationSelected = viewModel::onShareDurationSelected,
+                    onGenerateShareLink = viewModel::onGenerateShareLink,
+                    onShareSheetDismissed = viewModel::onShareSheetDismissed
                 )
             }
         }
@@ -139,9 +143,33 @@ fun AssetDetailScreen(
             when {
                 uiState.isLoading -> CircularProgressIndicator()
                 error != null -> AssetDetailErrorState(error = error, onRetry = viewModel::onRetry)
-                detail != null -> AssetDetailContent(detail = detail, uiState = uiState)
+                detail != null -> AssetDetailContent(
+                    detail = detail,
+                    uiState = uiState,
+                    onAddServiceClick = viewModel::onServiceFormOpened
+                )
             }
         }
+    }
+
+    // Overlay a nivel de pantalla, no dentro de AssetDetailContent/ServicesTab: mismo criterio que
+    // GeofenceCreationState en MapScreen -- serviceForm es null cuando el sheet está cerrado (ver
+    // AssetDetailUiState), así que este bloque decide solo su visibilidad, sin depender de qué
+    // pestaña esté seleccionada.
+    uiState.serviceForm?.let { serviceForm ->
+        ServiceFormSheet(
+            state = serviceForm,
+            onNameChanged = viewModel::onServiceNameChanged,
+            onExpirationBySelected = viewModel::onServiceExpirationBySelected,
+            onIntervalChanged = viewModel::onServiceIntervalChanged,
+            onLastServiceInputChanged = viewModel::onServiceLastServiceInputChanged,
+            onLastServiceDateChanged = viewModel::onServiceLastServiceDateChanged,
+            onTriggerEventLeftChanged = viewModel::onServiceTriggerEventLeftChanged,
+            onDescriptionChanged = viewModel::onServiceDescriptionChanged,
+            onRetryMetadata = viewModel::onServiceFormOpened,
+            onSubmit = viewModel::onCreateService,
+            onDismiss = viewModel::onServiceFormDismissed
+        )
     }
 }
 
@@ -179,12 +207,18 @@ private enum class AssetDetailTab(val labelRes: Int) {
 }
 
 @Composable
-private fun AssetDetailContent(detail: AssetDetail, uiState: AssetDetailUiState) {
-    val visibleTabs = remember(detail.sensors, detail.services, detail.driver) {
+private fun AssetDetailContent(detail: AssetDetail, uiState: AssetDetailUiState, onAddServiceClick: () -> Unit) {
+    // SERVICES ya no depende de detail.services (JSON crudo sin forma conocida, ver AssetDetailDto
+    // -- se deja el campo pero ya no se usa para pintar): siempre visible, como SUMMARY, porque
+    // ahora sale de su propia llamada de red (uiState.isServicesLoading/deviceServices, ver
+    // AssetDetailViewModel.loadServices) y la pestaña misma resuelve su estado vacío/cargando (ver
+    // ServicesTab) -- gatearla por un resultado que todavía no llegó causaría que la pestaña
+    // aparezca recién después del fetch, un parpadeo peor que mostrarla siempre.
+    val visibleTabs = remember(detail.sensors, detail.driver) {
         buildList {
             add(AssetDetailTab.SUMMARY)
             if (detail.sensors.isNotEmpty()) add(AssetDetailTab.SENSORS)
-            if (detail.services.isNotEmpty()) add(AssetDetailTab.SERVICES)
+            add(AssetDetailTab.SERVICES)
             if (detail.driver != null) add(AssetDetailTab.DRIVER)
         }
     }
@@ -230,7 +264,12 @@ private fun AssetDetailContent(detail: AssetDetail, uiState: AssetDetailUiState)
                 volumeUnit = uiState.volumeUnit,
                 modifier = Modifier.weight(1f)
             )
-            AssetDetailTab.SERVICES -> GenericFieldsTab(sections = detail.services, modifier = Modifier.weight(1f))
+            AssetDetailTab.SERVICES -> ServicesTab(
+                services = uiState.deviceServices,
+                isLoading = uiState.isServicesLoading,
+                onAddClick = onAddServiceClick,
+                modifier = Modifier.weight(1f)
+            )
             AssetDetailTab.DRIVER -> GenericFieldsTab(
                 sections = listOfNotNull(detail.driver),
                 modifier = Modifier.weight(1f)

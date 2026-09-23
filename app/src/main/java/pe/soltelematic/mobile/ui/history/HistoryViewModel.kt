@@ -16,8 +16,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import pe.soltelematic.mobile.core.result.ApiResult
+import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.repository.AssetDetailRepository
+import pe.soltelematic.mobile.domain.repository.AssetRepository
 import java.time.LocalDate
 
 // Paso base a 1x -- 2x/4x/8x lo dividen. A 200ms/punto un recorrido de ~200 puntos (un día
@@ -38,7 +40,9 @@ private const val VISUAL_UPDATE_INTERVAL_MS = 1000L / 30 // ~33ms, 30Hz
 /** assetId por parámetro de Koin, igual que AssetDetailViewModel -- ver ViewModelModule. */
 class HistoryViewModel(
     private val assetId: Int,
-    private val assetDetailRepository: AssetDetailRepository
+    private val assetDetailRepository: AssetDetailRepository,
+    private val userPreferencesDataStore: UserPreferencesDataStore,
+    private val assetRepository: AssetRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HistoryUiState())
@@ -76,6 +80,22 @@ class HistoryViewModel(
     init {
         loadRoute()
         ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
+        // Espejo de la preferencia global (compartida con MapScreen): el historial solo observa,
+        // nunca escribe -- ver HistoryUiState.mapType.
+        viewModelScope.launch {
+            userPreferencesDataStore.mapType.collect { type ->
+                _uiState.update { it.copy(mapType = type) }
+            }
+        }
+        // Icono de la unidad para el marcador de reproducción (ver HistoryUiState.unitIcon) --
+        // Room ya lo tiene desde el mapa en vivo/refresh de la flota, así que esto no dispara
+        // ninguna llamada de red propia de Historial, solo observa lo que ya hay.
+        viewModelScope.launch {
+            assetRepository.observeAssets().collect { assets ->
+                val icon = assets.firstOrNull { it.id == assetId }?.icon
+                _uiState.update { it.copy(unitIcon = icon) }
+            }
+        }
     }
 
     override fun onCleared() {
@@ -241,13 +261,20 @@ class HistoryViewModel(
                 to = range.to.atTime(23, 59, 59)
             )
             when (result) {
-                is ApiResult.Success -> _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        route = result.data,
-                        mapData = result.data.toRouteMapData(),
-                        playbackPoints = result.data.toPlaybackPoints()
-                    )
+                is ApiResult.Success -> {
+                    // toBearings() recorre todos los puntos una vez acá, al terminar la carga --
+                    // nunca dentro del loop de startPlayback (ver el comentario de esa función,
+                    // corre hasta 40 veces por segundo).
+                    val points = result.data.toPlaybackPoints()
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            route = result.data,
+                            mapData = result.data.toRouteMapData(),
+                            playbackPoints = points,
+                            playbackBearings = points.toBearings()
+                        )
+                    }
                 }
                 is ApiResult.Error -> _uiState.update { it.copy(isLoading = false, error = result.error) }
             }

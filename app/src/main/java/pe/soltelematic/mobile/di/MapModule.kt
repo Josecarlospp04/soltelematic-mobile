@@ -21,6 +21,7 @@ val mapModule = module {
 
     // factory, no single: a diferencia de MapEngine (una sola instancia para todo el ciclo de
     // vida del mapa en vivo), la pantalla de Historial se entra y sale -- no hay estado que valga
-    // la pena retener entre visitas (no tiene iconCache ni nada equivalente que precargar).
-    factory<RouteMapEngine> { GoogleRouteMapEngine() }
+    // la pena retener entre visitas (no tiene iconCache ni nada equivalente que precargar). El
+    // ImageLoader sí es el single de arriba (mismo caché de Coil que el mapa en vivo).
+    factory<RouteMapEngine> { GoogleRouteMapEngine(get()) }
 }

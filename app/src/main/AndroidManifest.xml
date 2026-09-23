@@ -25,6 +25,21 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="${mapsApiKey}" />
 
+        <!-- Expone los informes guardados por core/storage/ReportFileStore (almacenamiento
+             privado de la app) como content:// para abrirlos/compartirlos con otra app; ver
+             core/storage/ReportFileProvider.kt y res/xml/file_paths.xml. ${applicationId} es un
+             placeholder que Android Gradle Plugin resuelve solo, no hace falta declararlo en
+             build.gradle.kts (a diferencia de mapsApiKey arriba). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

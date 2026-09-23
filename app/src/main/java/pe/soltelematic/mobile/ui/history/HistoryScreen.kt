@@ -44,8 +44,10 @@ import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.result.ApiError
+import pe.soltelematic.mobile.domain.model.AssetIcon
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.HistoryRoute
+import pe.soltelematic.mobile.domain.model.MapType
 import pe.soltelematic.mobile.ui.map.engine.RouteMapEngine
 import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
@@ -159,11 +161,14 @@ fun HistoryScreen(
                     onLegSelected = viewModel::onLegSelected,
                     onStopRowVisible = viewModel::onStopRowVisible,
                     playbackPoints = uiState.playbackPoints,
+                    playbackBearings = uiState.playbackBearings,
+                    unitIcon = uiState.unitIcon,
                     playback = uiState.playback,
                     onPlayPauseClick = viewModel::onPlayPauseToggled,
                     onScrub = viewModel::onScrub,
                     onSpeedMultiplierClick = viewModel::onSpeedMultiplierCycled,
-                    routeMapEngine = routeMapEngine
+                    routeMapEngine = routeMapEngine,
+                    mapType = uiState.mapType
                 )
             }
         }
@@ -300,11 +305,14 @@ private fun HistoryContent(
     onLegSelected: (Int) -> Unit,
     onStopRowVisible: (Int, GeoPoint) -> Unit,
     playbackPoints: List<HistoryPlaybackPoint>,
+    playbackBearings: List<Float>,
+    unitIcon: AssetIcon?,
     playback: HistoryPlaybackState,
     onPlayPauseClick: () -> Unit,
     onScrub: (Int) -> Unit,
     onSpeedMultiplierClick: () -> Unit,
-    routeMapEngine: RouteMapEngine
+    routeMapEngine: RouteMapEngine,
+    mapType: MapType
 ) {
     val cameraController = routeMapEngine.rememberCameraController()
 
@@ -354,7 +362,10 @@ private fun HistoryContent(
             selectedLegIndex = selectedLegIndex,
             onMarkerClick = onLegSelected,
             playbackPoint = playbackPoints.getOrNull(playback.currentIndex)?.position?.point,
-            onCameraGesture = { followPlaybackCamera = false }
+            playbackBearing = playbackBearings.getOrNull(playback.currentIndex) ?: 0f,
+            unitIcon = unitIcon,
+            onCameraGesture = { followPlaybackCamera = false },
+            mapType = mapType
         )
         HistoryTimeline(
             legs = route.legs,

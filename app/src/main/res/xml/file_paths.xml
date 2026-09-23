@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debe coincidir con REPORTS_DIR_NAME en core/storage/ReportFileStore.kt: files-path apunta a
+     context.filesDir, "reports" es la subcarpeta real donde se guardan los informes descargados. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="reports" path="reports/" />
+</paths>

@@ -140,6 +140,47 @@
     <string name="asset_detail_last_report">Último reporte %1$s</string>
     <string name="asset_detail_location_title">Ubicación</string>
 
+    <string name="asset_detail_share_sheet_title">Compartir ubicación en vivo</string>
+    <string name="asset_detail_share_duration_1h">1 hora</string>
+    <string name="asset_detail_share_duration_3h">3 horas</string>
+    <string name="asset_detail_share_duration_6h">6 horas</string>
+    <string name="asset_detail_share_duration_12h">12 horas</string>
+    <string name="asset_detail_share_duration_1d">1 día</string>
+    <string name="asset_detail_share_duration_3d">3 días</string>
+    <string name="asset_detail_share_duration_7d">7 días</string>
+    <string name="asset_detail_share_generate">Generar enlace</string>
+    <string name="asset_detail_share_retry">Reintentar</string>
+    <string name="asset_detail_share_error">No se pudo generar el enlace. Intenta de nuevo.</string>
+    <string name="asset_detail_share_expires">Expira: %1$s</string>
+    <string name="asset_detail_share_copy">Copiar</string>
+    <string name="asset_detail_share_copied">Enlace copiado</string>
+
+    <string name="asset_detail_service_unnamed">Servicio sin nombre</string>
+    <string name="asset_detail_service_expired">Vencido</string>
+    <string name="asset_detail_services_empty_title">Sin servicios programados</string>
+    <string name="asset_detail_services_empty_message">Esta unidad no tiene servicios de mantenimiento configurados.</string>
+
+    <string name="asset_detail_service_add">Nuevo servicio</string>
+    <string name="asset_detail_service_form_title">Nuevo servicio de mantenimiento</string>
+    <string name="asset_detail_service_name_label">Nombre</string>
+    <string name="asset_detail_service_expires_by_label">Expira el</string>
+    <string name="asset_detail_service_interval_label">Intervalo (%1$s)</string>
+    <string name="asset_detail_service_unit_km">km</string>
+    <string name="asset_detail_service_unit_hours">horas</string>
+    <string name="asset_detail_service_unit_days">días</string>
+    <string name="asset_detail_service_last_service_label">Último servicio (%1$s)</string>
+    <string name="asset_detail_service_last_service_date_label">Último servicio</string>
+    <string name="asset_detail_service_pick_date">Elegir fecha</string>
+    <string name="asset_detail_service_trigger_label">Avisar cuando falten</string>
+    <string name="asset_detail_service_trigger_error">Debe ser menor que el intervalo</string>
+    <string name="asset_detail_service_description_label">Descripción</string>
+    <string name="asset_detail_service_save">Guardar</string>
+    <string name="asset_detail_service_metadata_error">No se pudo cargar el formulario. Intenta de nuevo.</string>
+    <string name="asset_detail_service_retry">Reintentar</string>
+    <string name="asset_detail_service_generic_error">No se pudo crear el servicio. Intenta de nuevo.</string>
+    <string name="asset_detail_service_odometer_zero_warning">Esta unidad no reporta odómetro. El servicio no vencerá hasta que el sensor esté configurado en la plataforma.</string>
+    <string name="asset_detail_service_engine_hours_zero_warning">Esta unidad no reporta horas de motor. El servicio no vencerá hasta que el sensor esté configurado en la plataforma.</string>
+
     <string name="history_title">Historial</string>
     <string name="history_cancel">Cancelar</string>
     <string name="history_leg_stop_title">Detenido</string>
@@ -182,7 +223,29 @@
     <string name="nav_tab_map">Mapa</string>
     <string name="nav_tab_units">Unidades</string>
     <string name="nav_tab_events">Alertas</string>
+    <string name="nav_tab_reports">Informes</string>
     <string name="nav_tab_account">Cuenta</string>
+    <string name="reports_title">Informes</string>
+    <string name="reports_type_label">Tipo de informe</string>
+    <string name="reports_format_label">Formato</string>
+    <string name="reports_format_html">HTML</string>
+    <string name="reports_format_xlsx">Excel (XLSX)</string>
+    <string name="reports_format_pdf">PDF</string>
+    <string name="reports_date_range_label">Rango de fechas</string>
+    <string name="reports_generate">Generar informe</string>
+    <string name="reports_generic_error">No se pudo generar el informe. Intenta de nuevo.</string>
+    <string name="reports_types_error">No se pudieron cargar los tipos de informe.</string>
+    <string name="reports_retry_types">Reintentar</string>
+    <string name="reports_generated_title">Informe generado</string>
+    <string name="reports_open">Abrir</string>
+    <string name="reports_share">Compartir</string>
+    <string name="reports_generate_another">Generar otro informe</string>
+    <string name="reports_cannot_open_file">No hay una app instalada para abrir este archivo.</string>
+
+    <plurals name="reports_devices_selected_count">
+        <item quantity="one">%d unidad seleccionada</item>
+        <item quantity="other">%d unidades seleccionadas</item>
+    </plurals>
     <string name="units_title">Unidades</string>
     <!-- Flota realmente vacía (sin filtro ni búsqueda activos): caso distinto de
          units_empty_filter_*, que es "0 resultados para ESTE filtro". -->

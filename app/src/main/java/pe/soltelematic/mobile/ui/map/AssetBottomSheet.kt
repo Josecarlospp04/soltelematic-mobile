@@ -281,9 +281,11 @@ private fun attributeChips(asset: Asset): List<AttributeChipData> = buildList {
         }
         add(AttributeChipData(icon, stringResource(textRes).uppercase()))
     }
-    // El rumbo solo es significativo mientras la unidad se mueve.
-    if (asset.status.type == AssetStatusType.ONLINE) {
-        add(AttributeChipData(icon = null, text = stringResource(R.string.map_course_format, asset.icon.courseDegrees)))
+    // El rumbo solo es significativo mientras la unidad se mueve, y solo existe cuando el icono
+    // es de tipo rotativo (ver AssetIcon.courseDegrees); si es null no hay rumbo que mostrar.
+    val course = asset.icon.courseDegrees
+    if (asset.status.type == AssetStatusType.ONLINE && course != null) {
+        add(AttributeChipData(icon = null, text = stringResource(R.string.map_course_format, course)))
     }
 }
 

@@ -15,9 +15,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Emergency
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PowerOff
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -135,6 +140,14 @@ private fun AlertEventType.toIcon(): ImageVector = when (this) {
     AlertEventType.IGNITION_OFF -> Icons.Filled.PowerOff
     AlertEventType.GEOFENCE_IN -> Icons.AutoMirrored.Filled.Login
     AlertEventType.GEOFENCE_OUT -> Icons.AutoMirrored.Filled.Logout
+    AlertEventType.FUEL_FILL -> Icons.Filled.LocalGasStation
+    AlertEventType.FUEL_THEFT -> Icons.Filled.Warning
+    AlertEventType.SOS -> Icons.Filled.Emergency
+    AlertEventType.POWER_CUT -> Icons.Filled.PowerOff
+    AlertEventType.LOW_BATTERY -> Icons.Filled.BatteryAlert
+    // Alerta personalizada que la heurística de nombres no supo clasificar. Campana, no
+    // interrogante: no es un error, es una alerta cuyo nombre no reconocemos.
+    AlertEventType.CUSTOM -> Icons.Filled.NotificationsActive
     AlertEventType.UNKNOWN -> Icons.AutoMirrored.Filled.HelpOutline
 }
 
@@ -147,12 +160,19 @@ private fun AlertEventType.toIcon(): ImageVector = when (this) {
 @Composable
 private fun AlertEventType.toColors(): Pair<Color, Color> {
     val colors = LocalSoltelematicColors.current
+
     return when (this) {
         AlertEventType.OVERSPEED -> colors.statusAlert to colors.statusAlertWash
         AlertEventType.IGNITION_ON -> colors.statusIdle to colors.statusIdleWash
         AlertEventType.IGNITION_OFF -> colors.statusOffline to colors.statusOfflineWash
         AlertEventType.GEOFENCE_IN -> colors.statusMoving to colors.statusMovingWash
         AlertEventType.GEOFENCE_OUT -> colors.statusAlert to colors.statusAlertWash
+        AlertEventType.FUEL_FILL -> colors.statusMoving to colors.statusMovingWash
+        AlertEventType.FUEL_THEFT -> colors.statusAlert to colors.statusAlertWash
+        AlertEventType.SOS -> colors.statusAlert to colors.statusAlertWash
+        AlertEventType.POWER_CUT -> colors.statusAlert to colors.statusAlertWash
+        AlertEventType.LOW_BATTERY -> colors.statusIdle to colors.statusIdleWash
+        AlertEventType.CUSTOM -> colors.statusIdle to colors.statusIdleWash
         AlertEventType.UNKNOWN -> colors.statusOffline to colors.statusOfflineWash
     }
 }

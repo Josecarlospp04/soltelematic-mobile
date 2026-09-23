@@ -40,5 +40,7 @@ enum class AssetStatusType { OFFLINE, ONLINE, ACK, ENGINE, BLOCKED, UNKNOWN }
 data class AssetIcon(
     val url: String?, // ya reescrito sobre el host real, ver IconUrlResolver
     val colorHex: String?, // presente cuando la unidad no tiene PNG propio
-    val courseDegrees: Float
+    // null = icono no rotativo (tipo "icon"/"arrow" en device_icons del servidor): dibujar sin
+    // rotación. Un valor presente es el rumbo en grados de un icono rotativo (tipo "rotating").
+    val courseDegrees: Float?
 )
