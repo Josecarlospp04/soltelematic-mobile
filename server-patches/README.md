@@ -1,8 +1,8 @@
 # Parches al servidor GPSWOX — SOLTELEMATIC Mobile
 
-Siete parches obligatorios. Sin ellos la app no funciona correctamente.
+Ocho parches obligatorios. Sin ellos la app no funciona correctamente.
 
-**Hay que reaplicarlos después de cada actualización de la plataforma GPSWOX**, porque se sobrescriben. Al desplegar la app para un cliente nuevo (otro servidor), aplicar los siete antes de nada.
+**Hay que reaplicarlos después de cada actualización de la plataforma GPSWOX**, porque se sobrescriben. Al desplegar la app para un cliente nuevo (otro servidor), aplicar los ocho antes de nada.
 
 Los archivos de esta carpeta son copias **literales y probadas** de un servidor en producción, no reconstrucciones.
 
@@ -17,6 +17,7 @@ Los archivos de esta carpeta son copias **literales y probadas** de un servidor 
 - [ ] Parche 5 — `sharing` (enlace temporal)
 - [ ] Parche 6 — servicios de mantenimiento (CRUD)
 - [ ] Parche 7 — informes (tipos + generación)
+- [ ] Parche 8 — series temporales de parámetros (gráficas)
 - [ ] Cliente OAuth `ClientLite Password Grant Client` creado (`php artisan server:passport`)
 - [ ] Verificar login desde la app antes de entregar
 
@@ -42,6 +43,7 @@ cp app/Http/Controllers/Api/ClientLite/SettingsController.php{,.bak}
 | `controllers/SharingController.php` | `app/Http/Controllers/Api/ClientLite/` |
 | `controllers/ServicesController.php` | `app/Http/Controllers/Api/ClientLite/` |
 | `controllers/ReportsController.php` | `app/Http/Controllers/Api/ClientLite/` |
+| `controllers/ParametersController.php` | `app/Http/Controllers/Api/ClientLite/` |
 
 ⚠️ `.htaccess` y `SettingsController.php` **no se reemplazan enteros**: el original trae más cosas. Ver abajo qué línea añadir en cada uno.
 
@@ -148,12 +150,45 @@ Solo en rutas web (`routes/web.php` ~321-327). Toda la lógica vive en `ModalHel
 
 ---
 
+## 8 · Series temporales de parámetros (gráficas)
+
+**Motivo:** la plataforma web solo muestra el **valor actual** de cada sensor; no existe histórico en ninguna vista. Pero el dato **sí está guardado**: cada fila de `positions_{device_id}` (base de Traccar) trae el XML crudo del equipo en `other` y los sensores configurados en `sensors_values`.
+
+**Archivos tocados:**
+- `routes/app.php`
+- `app/Http/Controllers/Api/ClientLite/ParametersController.php` (nuevo)
+
+**Endpoint:** `GET parameters?device_id=&from=&to=`
+
+### Fuente de cada parámetro
+
+| Serie | Origen |
+|---|---|
+| `voltage` | `<power>` de `other` — voltaje externo (V) |
+| `battery` | `<io113>` de `other` — batería interna (%) |
+| `rssi` | `<rssi>` de `other` |
+| `satellites` | `<sat>` de `other` |
+| `speed` | columna `speed` (nudos → km/h ×1.852) |
+| `fuel` | `sensors_values`, por el **id** del sensor `fuel_tank` de esa unidad |
+
+Una serie sin datos **no se incluye** en la respuesta: la unidad no reporta ese parámetro y la app no dibuja esa gráfica.
+
+⚠️ **Submuestreo con LTTB** (Largest Triangle Three Buckets), máximo 500 puntos por serie — **no promedio**. Promediar aplana los picos, y el pico es el dato que importa: en una prueba real, el arranque del motor se ve como `25.285 → 21.845 → 28.296` en segundos; con promedio quedaría una línea plana en 25 V. LTTB devuelve siempre valores **reales medidos**.
+
+⚠️ Las posiciones se leen con `$device->positions()` (relación `HasManyTable` que ya resuelve `positions_{id}` en la base de Traccar) — no construir el nombre de tabla a mano.
+
+⚠️ `sensors_values` **ya viene casteado a array** por el modelo; no aplicar `json_decode` sin comprobar.
+
+**Rendimiento verificado:** 7 días = 7425 posiciones → 500 puntos por serie, **1.9 s y 51 KB**.
+
+---
+
 ## Verificación rápida tras aplicar
 
 Todas las rutas deben devolver **401** sin token (no 404):
 
 ```bash
-for u in devices geofences/map sharing reports/types; do
+for u in devices geofences/map sharing reports/types parameters; do
   echo -n "$u -> "
   curl -s -o /dev/null -w "%{http_code}\n" http://localhost/api/app/clientlite/$u
 done

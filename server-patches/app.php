@@ -61,6 +61,9 @@ Route::group(['middleware' => [], 'namespace' => 'Api\ClientLite', 'prefix' => '
         // PARCHE SOLTELEMATIC MOBILE -- informes descargables.
         Route::get('reports/types', ['uses' => 'ReportsController@types']);
         Route::post('reports/generate', ['uses' => 'ReportsController@generate']);
+
+        // PARCHE SOLTELEMATIC MOBILE -- series temporales de parametros para graficar.
+        Route::get('parameters', ['uses' => 'ParametersController@get']);
     });
 });
 
