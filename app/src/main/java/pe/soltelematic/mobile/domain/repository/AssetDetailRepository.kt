@@ -5,6 +5,7 @@ import pe.soltelematic.mobile.domain.model.AssetDetail
 import pe.soltelematic.mobile.domain.model.DeviceCommand
 import pe.soltelematic.mobile.domain.model.DeviceService
 import pe.soltelematic.mobile.domain.model.HistoryRoute
+import pe.soltelematic.mobile.domain.model.ParameterSeries
 import pe.soltelematic.mobile.domain.model.SendCommandOutcome
 import pe.soltelematic.mobile.domain.model.ServiceCreateForm
 import pe.soltelematic.mobile.domain.model.ServiceCreateRequest
@@ -26,6 +27,14 @@ interface AssetDetailRepository {
 
     /** Ruta completa (viajes, paradas, polyline) para la pantalla de Historial, Sprint 2B. */
     suspend fun getRoute(id: Int, from: LocalDateTime, to: LocalDateTime): ApiResult<HistoryRoute>
+
+    /**
+     * Series de parámetros (voltaje, batería, señal, satélites, velocidad, combustible) para las
+     * gráficas de la pantalla nueva accesible desde Historial (parche 8, GET clientlite/parameters).
+     * Solo trae las series que la unidad SÍ reporta -- ver ParametersResponseDto. El servidor ya
+     * submuestrea con LTTB a máximo 500 puntos por serie, la app no vuelve a reducir nada.
+     */
+    suspend fun getParameters(id: Int, from: LocalDateTime, to: LocalDateTime): ApiResult<List<ParameterSeries>>
 
     suspend fun getAddress(lat: Double, lng: Double): ApiResult<String?>
 

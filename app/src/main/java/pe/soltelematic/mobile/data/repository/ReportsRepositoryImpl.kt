@@ -52,7 +52,7 @@ class ReportsRepositoryImpl(
             is ApiResult.Error -> result
         }
 
-    private fun Response<ResponseBody>.toGeneratedReport(request: ReportGenerateRequest): ApiResult<GeneratedReport> {
+    private suspend fun Response<ResponseBody>.toGeneratedReport(request: ReportGenerateRequest): ApiResult<GeneratedReport> {
         val responseBody = body() ?: return ApiResult.Error(ApiError.Unknown("Respuesta de informe vacía"))
         val fileName = resolveFileName(request)
         val file = reportFileStore.save(responseBody, fileName)

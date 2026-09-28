@@ -1,6 +1,11 @@
 package pe.soltelematic.mobile.ui.navigation
 
+import java.time.LocalDate
+
 private const val ASSET_ID_ARG = "assetId"
+private const val EVENT_ID_ARG = "eventId"
+private const val FROM_ARG = "from"
+private const val TO_ARG = "to"
 
 /**
  * Login/Map/Account son rutas fijas sin argumentos. AssetDetail sí necesita uno (el id de la
@@ -22,5 +27,22 @@ sealed class Destination(val route: String) {
     data object History : Destination("asset/{$ASSET_ID_ARG}/history") {
         const val ARG_ID = ASSET_ID_ARG
         fun createRoute(assetId: Int) = "asset/$assetId/history"
+    }
+    // from/to viajan en la ruta como LocalDate.toString() (yyyy-MM-dd, sin '/') -- mismo rango que
+    // el usuario tenía elegido en Historial (ver HistoryScreen.onOpenParameterCharts), no un rango
+    // propio de esta pantalla.
+    data object ParameterCharts : Destination("asset/{$ASSET_ID_ARG}/parameters/{$FROM_ARG}/{$TO_ARG}") {
+        const val ARG_ID = ASSET_ID_ARG
+        const val ARG_FROM = FROM_ARG
+        const val ARG_TO = TO_ARG
+        fun createRoute(assetId: Int, from: LocalDate, to: LocalDate) = "asset/$assetId/parameters/$from/$to"
+    }
+    // El id de la ruta solo identifica la entrada del back stack -- no hay GET /events/{id} para
+    // reconstruir el AlertEvent completo a partir de él (ver EventDao/EventsApi). Los datos viajan
+    // por EventMapRequestBus desde el punto de click (ver EventCard/EventsScreen), que ya tiene el
+    // evento completo en memoria.
+    data object EventMap : Destination("event/{$EVENT_ID_ARG}/map") {
+        const val ARG_ID = EVENT_ID_ARG
+        fun createRoute(eventId: Int) = "event/$eventId/map"
     }
 }

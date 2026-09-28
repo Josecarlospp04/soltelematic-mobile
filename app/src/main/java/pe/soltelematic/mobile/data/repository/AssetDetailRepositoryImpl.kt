@@ -10,6 +10,7 @@ import pe.soltelematic.mobile.domain.model.AssetDetail
 import pe.soltelematic.mobile.domain.model.DeviceCommand
 import pe.soltelematic.mobile.domain.model.DeviceService
 import pe.soltelematic.mobile.domain.model.HistoryRoute
+import pe.soltelematic.mobile.domain.model.ParameterSeries
 import pe.soltelematic.mobile.domain.model.SendCommandOutcome
 import pe.soltelematic.mobile.domain.model.ServiceCreateForm
 import pe.soltelematic.mobile.domain.model.ServiceCreateRequest
@@ -57,6 +58,20 @@ class AssetDetailRepositoryImpl(
         when (
             val result = apiCallExecutor.execute {
                 api.getHistory(
+                    deviceId = id,
+                    from = from.format(HISTORY_DATE_FORMAT),
+                    to = to.format(HISTORY_DATE_FORMAT)
+                )
+            }
+        ) {
+            is ApiResult.Success -> ApiResult.Success(result.data.data.toDomain())
+            is ApiResult.Error -> result
+        }
+
+    override suspend fun getParameters(id: Int, from: LocalDateTime, to: LocalDateTime): ApiResult<List<ParameterSeries>> =
+        when (
+            val result = apiCallExecutor.execute {
+                api.getParameters(
                     deviceId = id,
                     from = from.format(HISTORY_DATE_FORMAT),
                     to = to.format(HISTORY_DATE_FORMAT)

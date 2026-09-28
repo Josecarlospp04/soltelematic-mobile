@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.PowerOff
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -84,6 +85,7 @@ fun SummaryTab(
     isAddressLoading: Boolean,
     todayStats: List<UnitStat>,
     isTodayStatsLoading: Boolean,
+    onNavigateToMap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Una sola vez acá: alimenta tanto el color de LastSeenLine como el atenuado de "HOY" --
@@ -99,7 +101,13 @@ fun SummaryTab(
         verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xl)
     ) {
         SpeedStatusRow(detail)
-        LocationBlock(detail = detail, address = address, isAddressLoading = isAddressLoading, freshness = freshness)
+        LocationBlock(
+            detail = detail,
+            address = address,
+            isAddressLoading = isAddressLoading,
+            freshness = freshness,
+            onNavigateToMap = onNavigateToMap
+        )
         TodayStatsBlock(
             stats = todayStats,
             isLoading = isTodayStatsLoading,
@@ -243,7 +251,13 @@ private fun SectionHeader(text: String) {
 }
 
 @Composable
-private fun LocationBlock(detail: AssetDetail, address: String?, isAddressLoading: Boolean, freshness: LastSeenFreshness) {
+private fun LocationBlock(
+    detail: AssetDetail,
+    address: String?,
+    isAddressLoading: Boolean,
+    freshness: LastSeenFreshness,
+    onNavigateToMap: () -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)) {
         SectionHeader(stringResource(R.string.asset_detail_location_title))
         Card(
@@ -264,9 +278,24 @@ private fun LocationBlock(detail: AssetDetail, address: String?, isAddressLoadin
                     AddressLine(address = address, isLoading = isAddressLoading)
                     CoordinatesLine(position = position)
                     LastSeenLine(detail = detail, freshness = freshness)
+                    // Solo con posición conocida (misma condición que el resto del bloque de
+                    // arriba): no tiene sentido centrar el mapa en nada.
+                    ViewOnMapButton(onClick = onNavigateToMap)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ViewOnMapButton(onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+    ) {
+        Icon(Icons.Filled.Map, contentDescription = null, modifier = Modifier.size(SoltelematicIconSpec.small))
+        Spacer(Modifier.width(SoltelematicSpacing.xs))
+        Text(stringResource(R.string.asset_detail_view_on_map), style = MaterialTheme.typography.labelLarge)
     }
 }
 

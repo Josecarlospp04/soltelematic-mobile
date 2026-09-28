@@ -38,6 +38,7 @@ private fun HistoryTimelinePreview() {
             onPlayPauseClick = {},
             onScrub = {},
             onSpeedMultiplierClick = {},
+            onOpenParameterCharts = {},
             modifier = Modifier.fillMaxSize()
         )
     }

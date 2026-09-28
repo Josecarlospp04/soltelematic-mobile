@@ -17,6 +17,7 @@ import pe.soltelematic.mobile.core.network.UnseenEventsPoller
 import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
+import pe.soltelematic.mobile.domain.model.Asset
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
@@ -65,6 +66,15 @@ class MapViewModel(
     private val _autoFitCamera = MutableSharedFlow<List<GeoPoint>>(extraBufferCapacity = 1)
     val autoFitCamera: SharedFlow<List<GeoPoint>> = _autoFitCamera.asSharedFlow()
 
+    // Foco pedido desde la ficha de la unidad (ver MapFocusRequestBus/focusOnAsset). Si todavía no
+    // hay posiciones cargadas cuando se pide el foco (instancia de mapa recién creada, ver
+    // SoltelematicNavHost -- onNavigateToMap empuja una entrada nueva de Destination.Map), queda acá
+    // hasta que la primera carga de assets resuelva esa unidad.
+    private var pendingFocusAssetId: Int? = null
+
+    private val _centerOnAsset = MutableSharedFlow<GeoPoint>(extraBufferCapacity = 1)
+    val centerOnAsset: SharedFlow<GeoPoint> = _centerOnAsset.asSharedFlow()
+
     private val _geofenceCreateEvent = MutableSharedFlow<GeofenceCreateEvent>(extraBufferCapacity = 1)
     val geofenceCreateEvent: SharedFlow<GeofenceCreateEvent> = _geofenceCreateEvent.asSharedFlow()
 
@@ -81,6 +91,7 @@ class MapViewModel(
                     )
                 }
                 triggerAutoFitIfNeeded()
+                resolvePendingFocusIfNeeded(assets)
             }
         }
         viewModelScope.launch {
@@ -179,6 +190,30 @@ class MapViewModel(
         }
         loadSelectedAssetStats(id)
         loadSelectedAssetAddress(id)
+    }
+
+    /**
+     * Entrada desde MapFocusRequestBus (ver MapScreen): abre la hoja como onAssetSelected y,
+     * además, centra la cámara -- a diferencia de tocar un marcador, acá el usuario puede llegar
+     * con el mapa recién creado (sin assets todavía, ver SoltelematicNavHost) o mirando otra zona,
+     * así que sí hace falta mover la cámara explícitamente.
+     */
+    fun focusOnAsset(id: Int) {
+        onAssetSelected(id)
+        val position = _uiState.value.assets.firstOrNull { it.id == id }?.position
+        if (position != null) {
+            pendingFocusAssetId = null
+            _centerOnAsset.tryEmit(position)
+        } else {
+            pendingFocusAssetId = id
+        }
+    }
+
+    private suspend fun resolvePendingFocusIfNeeded(assets: List<Asset>) {
+        val id = pendingFocusAssetId ?: return
+        val position = assets.firstOrNull { it.id == id }?.position ?: return
+        pendingFocusAssetId = null
+        _centerOnAsset.emit(position)
     }
 
     fun onBottomSheetDismissed() {

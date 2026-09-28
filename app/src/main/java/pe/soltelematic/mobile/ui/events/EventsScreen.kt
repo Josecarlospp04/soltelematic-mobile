@@ -54,8 +54,11 @@ import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.core.navigation.EventMapOpenRequest
+import pe.soltelematic.mobile.core.navigation.EventMapRequestBus
 import pe.soltelematic.mobile.core.network.UnseenEventsPoller
 import pe.soltelematic.mobile.core.result.ApiError
+import pe.soltelematic.mobile.domain.model.AlertEvent
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.ui.events.components.EventCard
 import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
@@ -85,8 +88,10 @@ private val LoadMoreSpinnerSize = 24.dp
 fun EventsScreen(
     onBack: () -> Unit,
     onOpenAssetDetail: (Int) -> Unit,
+    onOpenEventMap: (Int) -> Unit,
     viewModel: EventsViewModel = koinViewModel(),
-    unseenEventsPoller: UnseenEventsPoller = koinInject()
+    unseenEventsPoller: UnseenEventsPoller = koinInject(),
+    eventMapRequestBus: EventMapRequestBus = koinInject()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val unseenCount by unseenEventsPoller.unseenCount.collectAsState()
@@ -141,7 +146,18 @@ fun EventsScreen(
                     uiState = uiState,
                     onLoadMore = viewModel::onLoadMore,
                     onRowVisible = viewModel::onEventRowVisible,
-                    onOpenAssetDetail = onOpenAssetDetail
+                    onOpenAssetDetail = onOpenAssetDetail,
+                    onOpenEventMap = { event ->
+                        val resolution = uiState.addresses[event.id]
+                        eventMapRequestBus.requestOpen(
+                            EventMapOpenRequest(
+                                event = event,
+                                hasResolvedAddress = resolution is AddressResolution.Resolved,
+                                resolvedAddress = (resolution as? AddressResolution.Resolved)?.address
+                            )
+                        )
+                        onOpenEventMap(event.id)
+                    }
                 )
             }
         }
@@ -283,7 +299,8 @@ private fun EventsListContent(
     uiState: EventsUiState,
     onLoadMore: () -> Unit,
     onRowVisible: (Int, GeoPoint?) -> Unit,
-    onOpenAssetDetail: (Int) -> Unit
+    onOpenAssetDetail: (Int) -> Unit,
+    onOpenEventMap: (AlertEvent) -> Unit
 ) {
     val listState = rememberLazyListState()
     val events = uiState.visibleEvents
@@ -314,7 +331,8 @@ private fun EventsListContent(
                     event = event,
                     unseen = uiState.seenBaselineId?.let { event.id > it } ?: true,
                     addressResolution = uiState.addresses[event.id],
-                    onClick = { event.deviceId?.let(onOpenAssetDetail) }
+                    onClick = { event.deviceId?.let(onOpenAssetDetail) },
+                    onOpenMap = { onOpenEventMap(event) }
                 )
             }
             if (uiState.isLoadingMore || uiState.loadMoreError != null) {

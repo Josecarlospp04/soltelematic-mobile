@@ -69,6 +69,7 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.core.navigation.MapFocusRequestBus
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
@@ -91,7 +92,8 @@ fun MapScreen(
     onOpenHistory: (Int) -> Unit,
     onOpenEvents: () -> Unit,
     viewModel: MapViewModel = koinViewModel(),
-    mapEngine: MapEngine = koinInject()
+    mapEngine: MapEngine = koinInject(),
+    mapFocusRequestBus: MapFocusRequestBus = koinInject()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -105,6 +107,17 @@ fun MapScreen(
 
     LaunchedEffect(Unit) {
         viewModel.autoFitCamera.collect { positions -> cameraController.fitAll(positions) }
+    }
+
+    // Foco pedido desde la ficha de la unidad (ver SummaryTab -> SoltelematicNavHost): el
+    // SharedFlow con buffer 1 ya garantiza el consumo único (ver MapFocusRequestBus) -- si el
+    // usuario sale del mapa y vuelve a la pestaña por su cuenta, no hay nada nuevo que colectar.
+    LaunchedEffect(Unit) {
+        mapFocusRequestBus.focusRequests.collect { assetId -> viewModel.focusOnAsset(assetId) }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.centerOnAsset.collect { point -> cameraController.centerOn(point) }
     }
 
     val snackbarHostState = remember { SnackbarHostState() }

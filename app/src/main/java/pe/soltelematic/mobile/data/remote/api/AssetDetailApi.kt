@@ -5,6 +5,7 @@ import pe.soltelematic.mobile.data.remote.dto.AssetDetailResponseDto
 import pe.soltelematic.mobile.data.remote.dto.CommandsResponseDto
 import pe.soltelematic.mobile.data.remote.dto.DeviceServicesResponseDto
 import pe.soltelematic.mobile.data.remote.dto.HistoryResponseDto
+import pe.soltelematic.mobile.data.remote.dto.ParametersResponseDto
 import pe.soltelematic.mobile.data.remote.dto.SendCommandResponseDto
 import pe.soltelematic.mobile.data.remote.dto.ServiceCreateFormDto
 import pe.soltelematic.mobile.data.remote.dto.ServiceCreateRequestDto
@@ -30,6 +31,15 @@ interface AssetDetailApi {
         @Query("from") from: String,
         @Query("to") to: String
     ): HistoryResponseDto
+
+    // clientlite/parameters, mismo formato from/to que getHistory (parche 8, gráficas de
+    // parámetros de la pantalla nueva accesible desde Historial).
+    @GET("parameters")
+    suspend fun getParameters(
+        @Query("device_id") deviceId: Int,
+        @Query("from") from: String,
+        @Query("to") to: String
+    ): ParametersResponseDto
 
     @GET("address")
     suspend fun getAddress(@Query("lat") lat: Double, @Query("lng") lng: Double): AddressResponseDto

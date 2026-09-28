@@ -139,6 +139,9 @@
     <string name="asset_detail_command_network_error">No se pudo enviar el comando. Intenta de nuevo.</string>
     <string name="asset_detail_last_report">Último reporte %1$s</string>
     <string name="asset_detail_location_title">Ubicación</string>
+    <string name="asset_detail_view_on_map">Ver en mapa</string>
+    <string name="events_view_on_map">Ver en mapa</string>
+    <string name="event_map_title">Ubicación del evento</string>
 
     <string name="asset_detail_share_sheet_title">Compartir ubicación en vivo</string>
     <string name="asset_detail_share_duration_1h">1 hora</string>
@@ -196,6 +199,7 @@
     <string name="history_summary_driving_time">Tiempo de conducción</string>
     <string name="history_summary_stops">Paradas</string>
     <string name="history_summary_more_title">Más datos</string>
+    <string name="history_summary_open_charts">Gráficos</string>
     <string name="history_empty_title">Sin viajes este día</string>
     <string name="history_empty_message">La unidad no registró movimiento el %1$s.</string>
     <string name="history_empty_action">Elegir otra fecha</string>
@@ -206,6 +210,24 @@
     <string name="history_playback_pause">Pausar</string>
     <string name="history_playback_point_counter_format">%1$d / %2$d</string>
     <string name="history_playback_speed_multiplier_format">%1$d×</string>
+
+    <string name="parameter_charts_title">Gráficas de parámetros</string>
+    <string name="parameter_charts_empty_title">Sin parámetros</string>
+    <string name="parameter_charts_empty_message">Esta unidad no reporta parámetros en el periodo elegido.</string>
+    <string name="parameter_charts_error_title">No pudimos cargar las gráficas</string>
+    <string name="parameter_charts_error_message">El servidor no respondió. Revisa tu conexión e inténtalo otra vez.</string>
+    <string name="parameter_charts_error_detail">error %1$s · %2$s</string>
+    <string name="parameter_charts_min_label">Mín</string>
+    <string name="parameter_charts_max_label">Máx</string>
+    <string name="parameter_charts_last_label">Último</string>
+    <string name="parameter_charts_reset_zoom">Restablecer zoom</string>
+    <string name="parameter_charts_key_voltage">Voltaje externo (V)</string>
+    <string name="parameter_charts_key_battery">Batería interna (%)</string>
+    <string name="parameter_charts_key_rssi">Señal</string>
+    <string name="parameter_charts_key_satellites">Satélites</string>
+    <string name="parameter_charts_key_speed">Velocidad (km/h)</string>
+    <string name="parameter_charts_key_fuel">Combustible</string>
+    <string name="parameter_charts_key_unknown">Otro parámetro</string>
 
     <string name="events_title">Alertas</string>
     <string name="events_search_placeholder">Buscar por unidad o tipo</string>

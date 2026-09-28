@@ -19,11 +19,13 @@ import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Emergency
 import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PowerOff
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -64,6 +66,7 @@ fun EventCard(
     unseen: Boolean,
     addressResolution: AddressResolution?,
     onClick: () -> Unit,
+    onOpenMap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -105,7 +108,20 @@ fun EventCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                AddressLine(addressResolution)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    AddressLine(addressResolution, modifier = Modifier.weight(1f))
+                    // Solo con posición conocida (mismo criterio que "Ver en mapa" de la ficha,
+                    // ver SummaryTab): sin punto no hay nada que centrar en el mapa de evento.
+                    if (event.position != null) {
+                        IconButton(onClick = onOpenMap) {
+                            Icon(
+                                Icons.Filled.Map,
+                                contentDescription = stringResource(R.string.events_view_on_map),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
@@ -134,7 +150,8 @@ private fun EventTypeIcon(type: AlertEventType) {
 }
 
 // Mismos íconos que AssetBottomSheet.attributeChips para ON/OFF -- mismo concepto, misma app.
-private fun AlertEventType.toIcon(): ImageVector = when (this) {
+// internal (no private): EventMapScreen reutiliza este mapeo tal cual, en vez de duplicarlo.
+internal fun AlertEventType.toIcon(): ImageVector = when (this) {
     AlertEventType.OVERSPEED -> Icons.Filled.Speed
     AlertEventType.IGNITION_ON -> Icons.Filled.Bolt
     AlertEventType.IGNITION_OFF -> Icons.Filled.PowerOff
@@ -157,8 +174,9 @@ private fun AlertEventType.toIcon(): ImageVector = when (this) {
  * atención), IGNITION_ON en statusIdle (ámbar, "motor encendido"), IGNITION_OFF/UNKNOWN en
  * statusOffline (neutro), GEOFENCE_IN en statusMoving (verde, "entró" es la dirección esperada).
  */
+// internal (no private): EventMapScreen reutiliza este mapeo tal cual, en vez de duplicarlo.
 @Composable
-private fun AlertEventType.toColors(): Pair<Color, Color> {
+internal fun AlertEventType.toColors(): Pair<Color, Color> {
     val colors = LocalSoltelematicColors.current
 
     return when (this) {
@@ -191,8 +209,9 @@ private fun UnseenDot() {
 // Reutiliza los strings de dirección de la ficha (Sprint 2A) -- mismo patrón que
 // HistoryTimeline.AddressLine: resolution null = todavía no entró en pantalla, se trata igual
 // que "cargando" porque para cuando el usuario alcanza a leerlo ya debería haber corrido.
+// internal (no private): EventMapScreen reutiliza este render tal cual, en vez de duplicarlo.
 @Composable
-private fun AddressLine(resolution: AddressResolution?) {
+internal fun AddressLine(resolution: AddressResolution?, modifier: Modifier = Modifier) {
     val address = (resolution as? AddressResolution.Resolved)?.address
     val text = address ?: stringResource(
         if (resolution == null || resolution is AddressResolution.Loading) {
@@ -205,7 +224,8 @@ private fun AddressLine(resolution: AddressResolution?) {
         text = text,
         style = MaterialTheme.typography.labelLarge,
         fontStyle = if (address != null) FontStyle.Normal else FontStyle.Italic,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
     )
 }
 

@@ -54,6 +54,7 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
 import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
 import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -77,6 +78,9 @@ private val CalendarButtonBorderWidth = 1.dp
 fun HistoryScreen(
     assetId: Int,
     onBack: () -> Unit,
+    // El rango lo decide quien llama (SoltelematicNavHost): las gráficas son del mismo periodo que
+    // el usuario tenía elegido acá, no de uno propio -- ver HistoryTimeline.onOpenParameterCharts.
+    onOpenParameterCharts: (from: LocalDate, to: LocalDate) -> Unit,
     viewModel: HistoryViewModel = koinViewModel(parameters = { parametersOf(assetId) }),
     routeMapEngine: RouteMapEngine = koinInject()
 ) {
@@ -167,6 +171,7 @@ fun HistoryScreen(
                     onPlayPauseClick = viewModel::onPlayPauseToggled,
                     onScrub = viewModel::onScrub,
                     onSpeedMultiplierClick = viewModel::onSpeedMultiplierCycled,
+                    onOpenParameterCharts = { onOpenParameterCharts(uiState.dateRange.from, uiState.dateRange.to) },
                     routeMapEngine = routeMapEngine,
                     mapType = uiState.mapType
                 )
@@ -311,6 +316,7 @@ private fun HistoryContent(
     onPlayPauseClick: () -> Unit,
     onScrub: (Int) -> Unit,
     onSpeedMultiplierClick: () -> Unit,
+    onOpenParameterCharts: () -> Unit,
     routeMapEngine: RouteMapEngine,
     mapType: MapType
 ) {
@@ -379,6 +385,7 @@ private fun HistoryContent(
             onPlayPauseClick = onPlayPauseClick,
             onScrub = onScrub,
             onSpeedMultiplierClick = onSpeedMultiplierClick,
+            onOpenParameterCharts = onOpenParameterCharts,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.55f)

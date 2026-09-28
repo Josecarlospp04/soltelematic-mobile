@@ -18,18 +18,22 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import org.koin.compose.koinInject
+import pe.soltelematic.mobile.core.navigation.MapFocusRequestBus
 import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.core.network.UnseenEventsPoller
 import pe.soltelematic.mobile.domain.repository.AuthRepository
 import pe.soltelematic.mobile.ui.account.AccountScreen
 import pe.soltelematic.mobile.ui.assetdetail.AssetDetailScreen
 import pe.soltelematic.mobile.ui.events.EventsScreen
+import pe.soltelematic.mobile.ui.eventmap.EventMapScreen
 import pe.soltelematic.mobile.ui.forgot.ForgotPasswordScreen
 import pe.soltelematic.mobile.ui.history.HistoryScreen
 import pe.soltelematic.mobile.ui.login.LoginScreen
 import pe.soltelematic.mobile.ui.map.MapScreen
+import pe.soltelematic.mobile.ui.parameters.ParameterChartsScreen
 import pe.soltelematic.mobile.ui.reports.ReportsScreen
 import pe.soltelematic.mobile.ui.units.UnitsScreen
+import java.time.LocalDate
 
 /**
  * Scaffold propio SOLO para alojar la barra de navegación inferior (Bloque de rediseño del mapa) --
@@ -47,7 +51,8 @@ fun SoltelematicNavHost(
     navController: NavHostController = rememberNavController(),
     authRepository: AuthRepository = koinInject(),
     authEventBus: AuthEventBus = koinInject(),
-    unseenEventsPoller: UnseenEventsPoller = koinInject()
+    unseenEventsPoller: UnseenEventsPoller = koinInject(),
+    mapFocusRequestBus: MapFocusRequestBus = koinInject()
 ) {
     val startDestination = if (authRepository.hasStoredSession()) {
         Destination.Map.route
@@ -156,6 +161,9 @@ fun SoltelematicNavHost(
                     onBack = { navController.popBackStack() },
                     onOpenAssetDetail = { assetId ->
                         navController.navigate(Destination.AssetDetail.createRoute(assetId))
+                    },
+                    onOpenEventMap = { eventId ->
+                        navController.navigate(Destination.EventMap.createRoute(eventId))
                     }
                 )
             }
@@ -180,7 +188,17 @@ fun SoltelematicNavHost(
                 AssetDetailScreen(
                     assetId = assetId,
                     onBack = { navController.popBackStack() },
-                    onOpenHistory = { navController.navigate(Destination.History.createRoute(assetId)) }
+                    onOpenHistory = { navController.navigate(Destination.History.createRoute(assetId)) },
+                    // Push simple, NO el patrón popUpTo/singleTop/restoreState de navigateToTab
+                    // (arriba): ese patrón vacía el back stack hasta la start destination, lo que
+                    // dejaría "atrás" sin la ficha. Acá "atrás" sí debe volver a la ficha (ver
+                    // spec del botón "Ver en mapa"), así que Mapa se apila como cualquier otro
+                    // destino hijo -- crea una entrada/instancia de MapViewModel propia para esta
+                    // visita, independiente de la de la pestaña.
+                    onNavigateToMap = {
+                        mapFocusRequestBus.requestFocus(assetId)
+                        navController.navigate(Destination.Map.route)
+                    }
                 )
             }
             composable(
@@ -190,8 +208,40 @@ fun SoltelematicNavHost(
                 val assetId = backStackEntry.arguments?.getInt(Destination.History.ARG_ID) ?: return@composable
                 HistoryScreen(
                     assetId = assetId,
+                    onBack = { navController.popBackStack() },
+                    onOpenParameterCharts = { from, to ->
+                        navController.navigate(Destination.ParameterCharts.createRoute(assetId, from, to))
+                    }
+                )
+            }
+            composable(
+                route = Destination.ParameterCharts.route,
+                arguments = listOf(
+                    navArgument(Destination.ParameterCharts.ARG_ID) { type = NavType.IntType },
+                    navArgument(Destination.ParameterCharts.ARG_FROM) { type = NavType.StringType },
+                    navArgument(Destination.ParameterCharts.ARG_TO) { type = NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val assetId = backStackEntry.arguments?.getInt(Destination.ParameterCharts.ARG_ID) ?: return@composable
+                val from = backStackEntry.arguments?.getString(Destination.ParameterCharts.ARG_FROM)
+                    ?.let(LocalDate::parse) ?: return@composable
+                val to = backStackEntry.arguments?.getString(Destination.ParameterCharts.ARG_TO)
+                    ?.let(LocalDate::parse) ?: return@composable
+                ParameterChartsScreen(
+                    assetId = assetId,
+                    from = from,
+                    to = to,
                     onBack = { navController.popBackStack() }
                 )
+            }
+            composable(
+                route = Destination.EventMap.route,
+                arguments = listOf(navArgument(Destination.EventMap.ARG_ID) { type = NavType.IntType })
+            ) {
+                // El id de esta ruta solo identifica la entrada del back stack -- el AlertEvent
+                // completo llega por EventMapRequestBus (ver Destination.EventMap/EventMapScreen),
+                // no se vuelve a resolver a partir de este id.
+                EventMapScreen(onBack = { navController.popBackStack() })
             }
         }
     }

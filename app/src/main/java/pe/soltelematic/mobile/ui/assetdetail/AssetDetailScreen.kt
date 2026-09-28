@@ -55,6 +55,7 @@ fun AssetDetailScreen(
     assetId: Int,
     onBack: () -> Unit,
     onOpenHistory: () -> Unit,
+    onNavigateToMap: () -> Unit,
     viewModel: AssetDetailViewModel = koinViewModel(parameters = { parametersOf(assetId) })
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -146,7 +147,8 @@ fun AssetDetailScreen(
                 detail != null -> AssetDetailContent(
                     detail = detail,
                     uiState = uiState,
-                    onAddServiceClick = viewModel::onServiceFormOpened
+                    onAddServiceClick = viewModel::onServiceFormOpened,
+                    onNavigateToMap = onNavigateToMap
                 )
             }
         }
@@ -207,7 +209,12 @@ private enum class AssetDetailTab(val labelRes: Int) {
 }
 
 @Composable
-private fun AssetDetailContent(detail: AssetDetail, uiState: AssetDetailUiState, onAddServiceClick: () -> Unit) {
+private fun AssetDetailContent(
+    detail: AssetDetail,
+    uiState: AssetDetailUiState,
+    onAddServiceClick: () -> Unit,
+    onNavigateToMap: () -> Unit
+) {
     // SERVICES ya no depende de detail.services (JSON crudo sin forma conocida, ver AssetDetailDto
     // -- se deja el campo pero ya no se usa para pintar): siempre visible, como SUMMARY, porque
     // ahora sale de su propia llamada de red (uiState.isServicesLoading/deviceServices, ver
@@ -257,6 +264,7 @@ private fun AssetDetailContent(detail: AssetDetail, uiState: AssetDetailUiState,
                 isAddressLoading = uiState.isAddressLoading,
                 todayStats = uiState.todayStats,
                 isTodayStatsLoading = uiState.isTodayStatsLoading,
+                onNavigateToMap = onNavigateToMap,
                 modifier = Modifier.weight(1f)
             )
             AssetDetailTab.SENSORS -> SensorsTab(

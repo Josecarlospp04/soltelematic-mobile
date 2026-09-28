@@ -35,7 +35,8 @@ private fun SpeedStatusRowPreviewContent() {
             address = null,
             isAddressLoading = false,
             todayStats = emptyList(),
-            isTodayStatsLoading = false
+            isTodayStatsLoading = false,
+            onNavigateToMap = {}
         )
     }
 }
@@ -55,7 +56,8 @@ private fun SpeedStatusRowLongStatusPreviewContent() {
             address = null,
             isAddressLoading = false,
             todayStats = emptyList(),
-            isTodayStatsLoading = false
+            isTodayStatsLoading = false,
+            onNavigateToMap = {}
         )
     }
 }

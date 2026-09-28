@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -21,9 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -53,6 +57,7 @@ import pe.soltelematic.mobile.domain.model.HistoryLeg
 import pe.soltelematic.mobile.domain.model.HistoryStopLeg
 import pe.soltelematic.mobile.domain.model.UnitStat
 import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
+import pe.soltelematic.mobile.ui.theme.SoltelematicIconSpec
 import pe.soltelematic.mobile.ui.theme.SoltelematicMetricTypography
 import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
 import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
@@ -91,6 +96,9 @@ fun HistoryTimeline(
     onPlayPauseClick: () -> Unit,
     onScrub: (Int) -> Unit,
     onSpeedMultiplierClick: () -> Unit,
+    // Rango de fechas actual de Historial: las gráficas son del mismo periodo, no de uno propio
+    // (ver Destination.ParameterCharts.createRoute).
+    onOpenParameterCharts: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // legIndex del punto que se está reproduciendo ahora mismo -- null si no hay reproducción o
@@ -104,7 +112,13 @@ fun HistoryTimeline(
     ) {
         // Primera fila de la lista, no del mapa: el espacio sale de acá, el mapa no se achica
         // (confirmado con el usuario).
-        item { RouteSummarySection(legs = legs, periodStats = periodStats) }
+        item {
+            RouteSummarySection(
+                legs = legs,
+                periodStats = periodStats,
+                onOpenParameterCharts = onOpenParameterCharts
+            )
+        }
 
         if (playbackPoints.size >= 2) {
             item {
@@ -152,7 +166,7 @@ fun HistoryTimeline(
  * sigue en una sección colapsable aparte, sin asumir campos fijos para esos.
  */
 @Composable
-private fun RouteSummarySection(legs: List<HistoryLeg>, periodStats: List<UnitStat>) {
+private fun RouteSummarySection(legs: List<HistoryLeg>, periodStats: List<UnitStat>, onOpenParameterCharts: () -> Unit) {
     val distance = periodStats.valueFor("distance")
     val drivingTime = sumDurationsCompact(legs.filterIsInstance<HistoryDriveLeg>().map { it.stats.valueFor("duration") })
     val stopCount = legs.count { it is HistoryStopLeg }
@@ -179,9 +193,10 @@ private fun RouteSummarySection(legs: List<HistoryLeg>, periodStats: List<UnitSt
                 modifier = Modifier.weight(1f)
             )
         }
-        if (extraStats.isNotEmpty()) {
-            ExtraStatsSection(stats = extraStats)
-        }
+        // Antes solo aparecía si había stats extra del servidor -- ahora siempre, porque también
+        // aloja el botón "Gráficos" (ver comentario de ExtraStatsSection), sin depender de que la
+        // unidad tenga algún sensor extra configurado.
+        ExtraStatsSection(stats = extraStats, onOpenParameterCharts = onOpenParameterCharts)
     }
 }
 
@@ -210,8 +225,14 @@ private fun RouteSummaryCard(value: String, label: String, modifier: Modifier = 
     }
 }
 
+/**
+ * Ver Historial > "Más datos": stats dinámicos del periodo + acceso a las gráficas de parámetros
+ * (voltaje, batería, señal, satélites, velocidad, combustible -- ver ParameterChartsScreen) del
+ * mismo rango de fechas elegido en Historial. El botón vive acá adentro, no como acción propia
+ * del TopAppBar, para no sumar un ícono más ahí (confirmado con el usuario).
+ */
 @Composable
-private fun ExtraStatsSection(stats: List<UnitStat>) {
+private fun ExtraStatsSection(stats: List<UnitStat>, onOpenParameterCharts: () -> Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val arrowRotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "periodSummaryArrow")
 
@@ -270,6 +291,19 @@ private fun ExtraStatsSection(stats: List<UnitStat>) {
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
+                    }
+                    OutlinedButton(
+                        onClick = onOpenParameterCharts,
+                        shape = SoltelematicShapes.small,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ShowChart,
+                            contentDescription = null,
+                            modifier = Modifier.size(SoltelematicIconSpec.small)
+                        )
+                        Spacer(modifier = Modifier.width(SoltelematicSpacing.xs))
+                        Text(stringResource(R.string.history_summary_open_charts), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }

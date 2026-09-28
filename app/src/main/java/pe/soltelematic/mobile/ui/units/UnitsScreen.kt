@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -214,12 +216,19 @@ private fun UnitRow(asset: Asset, imageLoader: ImageLoader, onClick: () -> Unit)
                         modifier = Modifier.size(UnitIconSize)
                     )
                 } else {
-                    // Sin icono asignado en la plataforma web (tipo "arrow" o sin icono, ver
-                    // contrato): el riel de color de estado a la izquierda ya comunica el estado,
-                    // así que acá se deja el hueco vacío en vez de dibujar un punto redundante --
-                    // el Spacer solo reserva el espacio para que los nombres de todas las filas
-                    // queden alineados.
-                    Spacer(Modifier.size(UnitIconSize))
+                    // Sin icono asignado en la plataforma web (tipo "arrow", icon_id = 0 en
+                    // DeviceIconTransformer del servidor -- no es un error, ahí la web dibuja una
+                    // flecha genérica en vez de un PNG propio). Se replica lo mismo acá: una
+                    // flecha vectorial del mismo tamaño que el icono real (UnitIconSize) para que
+                    // la alineación de los nombres no cambie entre filas. Sin rotación: en esta
+                    // lista no hay rumbo que representar (por eso el servidor manda
+                    // courseDegrees null en estos casos) -- la rotación es cosa del mapa.
+                    Icon(
+                        imageVector = Icons.Filled.Navigation,
+                        contentDescription = null,
+                        tint = asset.icon.colorHex?.toComposeColorOrDefault(statusColor) ?: statusColor,
+                        modifier = Modifier.size(UnitIconSize)
+                    )
                 }
                 Column(
                     verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.xs),
@@ -302,6 +311,12 @@ private fun statusPillColors(type: AssetStatusType, colors: SoltelematicColors) 
     AssetStatusType.BLOCKED -> colors.statusAlert to colors.statusAlertWash
     AssetStatusType.OFFLINE, AssetStatusType.UNKNOWN -> colors.statusOffline to colors.statusOfflineWash
 }
+
+// Mismo patrón que AssetBottomSheet.toComposeColorOrDefault -- duplicado a propósito (convención
+// del proyecto). El fallback acá es el color de estado (el mismo que ya pinta el riel de la fila),
+// no un gris genérico, para que la flecha nunca quede descolorida si el servidor no manda hex.
+private fun String.toComposeColorOrDefault(default: Color): Color =
+    runCatching { Color(android.graphics.Color.parseColor(this)) }.getOrDefault(default)
 
 /** Duplicada a propósito (mismo criterio que AssetBottomSheet.kt/SummaryTab.kt). */
 @Composable

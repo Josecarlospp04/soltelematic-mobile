@@ -5,12 +5,15 @@ import org.koin.dsl.module
 import pe.soltelematic.mobile.ui.account.AccountViewModel
 import pe.soltelematic.mobile.ui.assetdetail.AssetDetailViewModel
 import pe.soltelematic.mobile.ui.events.EventsViewModel
+import pe.soltelematic.mobile.ui.eventmap.EventMapViewModel
 import pe.soltelematic.mobile.ui.forgot.ForgotPasswordViewModel
 import pe.soltelematic.mobile.ui.history.HistoryViewModel
 import pe.soltelematic.mobile.ui.login.LoginViewModel
 import pe.soltelematic.mobile.ui.map.MapViewModel
+import pe.soltelematic.mobile.ui.parameters.ParameterChartsViewModel
 import pe.soltelematic.mobile.ui.reports.ReportsViewModel
 import pe.soltelematic.mobile.ui.units.UnitsViewModel
+import java.time.LocalDate
 
 val viewModelModule = module {
     viewModel { LoginViewModel(get(), get(), get()) }
@@ -21,7 +24,9 @@ val viewModelModule = module {
     // es un argumento de navegación, no una dependencia inyectable.
     viewModel { (assetId: Int) -> AssetDetailViewModel(assetId, get(), get(), get()) }
     viewModel { (assetId: Int) -> HistoryViewModel(assetId, get(), get(), get()) }
+    viewModel { (assetId: Int, from: LocalDate, to: LocalDate) -> ParameterChartsViewModel(assetId, from, to, get()) }
     viewModel { EventsViewModel(get(), get(), get()) }
+    viewModel { EventMapViewModel(get(), get(), get()) }
     viewModel { UnitsViewModel(get()) }
     viewModel { ReportsViewModel(get(), get()) }
 }
