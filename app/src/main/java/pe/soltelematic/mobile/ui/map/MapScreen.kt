@@ -65,11 +65,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.R
-import pe.soltelematic.mobile.core.navigation.MapFocusRequestBus
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
@@ -92,8 +92,7 @@ fun MapScreen(
     onOpenHistory: (Int) -> Unit,
     onOpenEvents: () -> Unit,
     viewModel: MapViewModel = koinViewModel(),
-    mapEngine: MapEngine = koinInject(),
-    mapFocusRequestBus: MapFocusRequestBus = koinInject()
+    mapEngine: MapEngine = koinInject()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -105,19 +104,21 @@ fun MapScreen(
 
     val cameraController = mapEngine.rememberCameraController()
 
+    // Foco pedido desde la ficha ("Ver en mapa", ver MapFocusRequestBus). Va en un LaunchedEffect y
+    // NO en el init del ViewModel: puede haber dos MapViewModel vivos a la vez y solo la pantalla
+    // visible tiene efecto activo. Declarado ANTES del colector de autoFitCamera a propósito, y con
+    // el colector de centerOnAsset arrancado UNDISPATCHED (ya suscrito antes de consumir): ni el
+    // centrado inmediato ni un encuadre de flota pueden colarse antes de tiempo, ambos son
+    // SharedFlow sin replay.
+    LaunchedEffect(Unit) {
+        launch(start = CoroutineStart.UNDISPATCHED) {
+            viewModel.centerOnAsset.collect { point -> cameraController.centerOn(point) }
+        }
+        viewModel.consumeFocusRequests()
+    }
+
     LaunchedEffect(Unit) {
         viewModel.autoFitCamera.collect { positions -> cameraController.fitAll(positions) }
-    }
-
-    // Foco pedido desde la ficha de la unidad (ver SummaryTab -> SoltelematicNavHost): el
-    // SharedFlow con buffer 1 ya garantiza el consumo único (ver MapFocusRequestBus) -- si el
-    // usuario sale del mapa y vuelve a la pestaña por su cuenta, no hay nada nuevo que colectar.
-    LaunchedEffect(Unit) {
-        mapFocusRequestBus.focusRequests.collect { assetId -> viewModel.focusOnAsset(assetId) }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.centerOnAsset.collect { point -> cameraController.centerOn(point) }
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -210,7 +211,7 @@ fun MapScreen(
             // garantiza que todo tap llegue a onMapClick, sin que un ícono de unidad se robe el
             // toque -- ver spec, sección "Durante el modo dibujo".
             markers = if (isDrawingGeofence) emptyList() else markers,
-            selectedMarkerId = uiState.selectedAssetId,
+            selectedMarkerId = uiState.highlightedAssetId,
             myLocationEnabled = hasLocationPermission,
             geofences = uiState.visibleGeofences,
             onMarkerClick = if (isDrawingGeofence) { {} } else viewModel::onAssetSelected,

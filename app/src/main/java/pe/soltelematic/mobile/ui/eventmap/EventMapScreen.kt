@@ -38,6 +38,7 @@ import pe.soltelematic.mobile.domain.model.AlertEvent
 import pe.soltelematic.mobile.domain.model.AlertEventType
 import pe.soltelematic.mobile.ui.events.AddressResolution
 import pe.soltelematic.mobile.ui.events.components.AddressLine
+import pe.soltelematic.mobile.ui.events.components.titleDetail
 import pe.soltelematic.mobile.ui.events.components.toColors
 import pe.soltelematic.mobile.ui.events.components.toIcon
 import pe.soltelematic.mobile.ui.map.engine.RouteMapEngine
@@ -156,7 +157,8 @@ private fun EventMapDetailsCard(event: AlertEvent, address: AddressResolution?, 
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = event.name ?: stringResource(R.string.events_unnamed_event),
+                    text = (event.name ?: stringResource(R.string.events_unnamed_event)) +
+                        (event.titleDetail()?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -165,9 +167,9 @@ private fun EventMapDetailsCard(event: AlertEvent, address: AddressResolution?, 
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                // Mismo criterio que EventCard: la velocidad solo si el evento la trae (no todos
-                // los tipos de evento la incluyen, ver AlertEvent.speedText).
-                event.speedText?.let { speedText ->
+                // Mismo criterio que EventCard: la velocidad solo en eventos de velocidad (en el
+                // resto speedText viene como "0 kph" sin significado).
+                event.speedText?.takeIf { event.type == AlertEventType.OVERSPEED }?.let { speedText ->
                     Text(
                         text = normalizeSpeedUnitSuffix(speedText),
                         style = MaterialTheme.typography.bodyMedium,

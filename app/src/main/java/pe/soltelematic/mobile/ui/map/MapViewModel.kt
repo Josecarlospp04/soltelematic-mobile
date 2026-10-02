@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import pe.soltelematic.mobile.core.navigation.MapFocusRequestBus
 import pe.soltelematic.mobile.core.network.RealtimePoller
 import pe.soltelematic.mobile.core.network.SocketRealtimeClient
 import pe.soltelematic.mobile.core.network.UnseenEventsPoller
@@ -37,7 +38,8 @@ class MapViewModel(
     private val userPreferences: UserPreferencesDataStore,
     // Mismo repositorio que ya usa AssetDetailViewModel para "HOY" -- la hoja inferior del mapa
     // reutiliza device/{id}+history y la geocodificación en vez de duplicar ese camino de red.
-    private val assetDetailRepository: AssetDetailRepository
+    private val assetDetailRepository: AssetDetailRepository,
+    private val mapFocusRequestBus: MapFocusRequestBus
 ) : ViewModel() {
 
     // Caché de direcciones por coordenada exacta, mismo patrón que HistoryViewModel/EventsViewModel:
@@ -82,6 +84,8 @@ class MapViewModel(
     val geofenceDeleteEvent: SharedFlow<GeofenceDeleteEvent> = _geofenceDeleteEvent.asSharedFlow()
 
     init {
+        // El foco de "Ver en mapa" NO se consume acá: puede haber dos instancias de este ViewModel
+        // vivas a la vez y la vieja se lo llevaría -- ver consumeFocusRequests y MapFocusRequestBus.
         viewModelScope.launch {
             assetRepository.observeAssets().collect { assets ->
                 _uiState.update {
@@ -144,6 +148,15 @@ class MapViewModel(
     // lo que el usuario acaba de filtrar.
     private suspend fun triggerAutoFitIfNeeded() {
         if (hasAutoFitted) return
+        // Hay un foco pendiente (ver focusOnAsset): encuadrar toda la flota acá competiría por la
+        // cámara con el centrado que pide ese foco -- esa carrera es justo lo que antes hacía que
+        // "Ver en mapa" recentrara sin cambiar el zoom (el fitAll de la flota ganaba). Se marca
+        // igual hasAutoFitted para que un ciclo de polling posterior no reintente el encuadre y
+        // deshaga el foco ya resuelto.
+        if (pendingFocusAssetId != null) {
+            hasAutoFitted = true
+            return
+        }
         val state = _uiState.value
         val hasActiveFilterOrSearch = state.activeFilter != AssetFilter.ALL || state.searchQuery.isNotBlank()
         val candidateAssets = if (hasActiveFilterOrSearch) state.visibleAssets else state.assets
@@ -182,6 +195,9 @@ class MapViewModel(
         _uiState.update {
             it.copy(
                 selectedAssetId = id,
+                // Un toque directo sobre un marcador reemplaza cualquier foco pendiente de "Ver en
+                // mapa" -- solo debe quedar resaltada la unidad que el usuario acaba de tocar.
+                focusedAssetId = null,
                 isSelectedAssetStatsLoading = true,
                 selectedAssetStats = emptyList(),
                 isSelectedAssetAddressLoading = true,
@@ -193,13 +209,34 @@ class MapViewModel(
     }
 
     /**
-     * Entrada desde MapFocusRequestBus (ver MapScreen): abre la hoja como onAssetSelected y,
-     * además, centra la cámara -- a diferencia de tocar un marcador, acá el usuario puede llegar
-     * con el mapa recién creado (sin assets todavía, ver SoltelematicNavHost) o mirando otra zona,
-     * así que sí hace falta mover la cámara explícitamente.
+     * Se llama desde un LaunchedEffect de MapScreen, NO desde init/viewModelScope: la pestaña Mapa y
+     * el Mapa apilado por "Ver en mapa" tienen cada uno su MapViewModel vivo al mismo tiempo, y un
+     * colector en viewModelScope de la instancia tapada se llevaba el foco. El efecto de la pantalla
+     * tapada sí se cancela al salir de composición, así que solo la visible consume. Ver
+     * MapFocusRequestBus (las dos trampas).
      */
-    fun focusOnAsset(id: Int) {
-        onAssetSelected(id)
+    suspend fun consumeFocusRequests() {
+        mapFocusRequestBus.focusedAssetId.collect { id ->
+            if (id != null) {
+                // Se limpia apenas se consume: volver después a la pestaña Mapa (o que esta misma
+                // pantalla reinicie su efecto) no debe volver a centrar sobre esta unidad.
+                mapFocusRequestBus.clear()
+                focusOnAsset(id)
+            }
+        }
+    }
+
+    /**
+     * Entrada desde MapFocusRequestBus (ver consumeFocusRequests): a diferencia de tocar un
+     * marcador, esto NO abre la hoja inferior -- el usuario ya viene de la ficha de la unidad, así
+     * que solo hace falta centrar la cámara (con zoom cercano, ver MapCameraController.centerOn) y
+     * resaltar el marcador (focusedAssetId, ver MapUiState.highlightedAssetId). También puede
+     * llegar con el mapa recién creado (sin assets todavía, ver SoltelematicNavHost) o mirando otra
+     * zona, así que sí hace falta mover la cámara explícitamente en vez de confiar en el encuadre
+     * automático.
+     */
+    private fun focusOnAsset(id: Int) {
+        _uiState.update { it.copy(focusedAssetId = id) }
         val position = _uiState.value.assets.firstOrNull { it.id == id }?.position
         if (position != null) {
             pendingFocusAssetId = null
@@ -222,6 +259,9 @@ class MapViewModel(
         _uiState.update {
             it.copy(
                 selectedAssetId = null,
+                // Mismo botón que "cerrar hoja" para el caso sin hoja: tocar el mapa vacío tras un
+                // foco de "Ver en mapa" también debe apagar su resaltado (ver onMapClick).
+                focusedAssetId = null,
                 isSelectedAssetStatsLoading = false,
                 selectedAssetStats = emptyList(),
                 isSelectedAssetAddressLoading = false,

@@ -15,8 +15,10 @@ data class AlertEvent(
     val deviceId: Int?,
     val deviceName: String?,
     val name: String?, // nombre del evento, ya traducido por el servidor
-    val detail: String?, // umbral configurado en la alerta, ej. "5 kph"
-    val speedText: String?, // speed.human, valor real medido -- null si el evento no es de velocidad
+    // Su significado depende del tipo: overspeed = umbral ("5 kph"); fuel_fill/theft = "sensor, cantidad"
+    // ("PRINCIPAL, 22"); geocerca = nombre de la geocerca; conductor = nombre; duraciones = "N minutos".
+    val detail: String?,
+    val speedText: String?, // speed.human; solo significativo en OVERSPEED (en otros suele ser "0 kph")
     val position: GeoPoint?,
     val occurredAt: Instant?,
     val occurredFormatted: String?

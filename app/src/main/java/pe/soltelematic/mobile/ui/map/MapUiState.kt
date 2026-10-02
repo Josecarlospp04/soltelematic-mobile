@@ -13,6 +13,10 @@ data class MapUiState(
     val activeFilter: AssetFilter = AssetFilter.ALL,
     val hasBlockedAssets: Boolean = false,
     val selectedAssetId: Int? = null,
+    // Unidad resaltada (anillo del marcador, ver GoogleMapEngine.selectionRing) sin abrir la hoja
+    // inferior -- el "Ver en mapa" de la ficha (ver MapViewModel.focusOnAsset) usa esto en vez de
+    // selectedAssetId, porque el usuario ya viene de la ficha y no hace falta volver a abrirla acá.
+    val focusedAssetId: Int? = null,
     val isRefreshing: Boolean = false,
     val unseenEventsCount: Int = 0,
     val geofences: List<Geofence> = emptyList(),
@@ -42,6 +46,11 @@ data class MapUiState(
 
     val selectedAsset: Asset?
         get() = selectedAssetId?.let { id -> assets.firstOrNull { it.id == id } }
+
+    // Anillo de resaltado del mapa: sigue selectedAssetId mientras la hoja está abierta, y cae a
+    // focusedAssetId cuando el foco viene de "Ver en mapa" sin hoja (ver MapScreen.selectedMarkerId).
+    val highlightedAssetId: Int?
+        get() = selectedAssetId ?: focusedAssetId
 
     val visibleGeofences: List<Geofence>
         get() = if (showGeofences) geofences else emptyList()

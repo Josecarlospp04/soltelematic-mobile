@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.format.normalizeSpeedUnitSuffix
@@ -86,18 +87,21 @@ fun EventCard(
         ) {
             EventTypeIcon(event.type)
             Column(modifier = Modifier.weight(1f)) {
+                // Con 3 segmentos el título puede ser largo: hasta 2 líneas y elipsis, no se corta
+                // a media palabra en pantallas angostas.
                 Text(
                     text = "${event.deviceName ?: stringResource(R.string.asset_unnamed)} · " +
-                        (event.name ?: stringResource(R.string.events_unnamed_event)),
+                        (event.name ?: stringResource(R.string.events_unnamed_event)) +
+                        (event.titleDetail()?.let { " · $it" } ?: ""),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-                // detail es el umbral configurado ("5 kph") -- sin él no hay con qué comparar
-                // speedText, aunque speedText no sea null (ej. ignición con la unidad detenida:
-                // speed.value=0, así que speedText="0 kph", pero detail viene vacío por no tener
-                // umbral). La señal es la presencia de detail, no el tipo de evento: si mañana
-                // otro tipo trae umbral, esto lo muestra solo, sin tocar este código.
-                if (!event.detail.isNullOrBlank() && event.speedText != null) {
+                // detail NO significa lo mismo en todos los tipos (ver AlertEvent.detail): solo en
+                // OVERSPEED es el umbral de velocidad, así que "X vs límite Y" se muestra únicamente
+                // para ese tipo, no por la mera presencia de detail.
+                if (event.type == AlertEventType.OVERSPEED && !event.detail.isNullOrBlank() && event.speedText != null) {
                     Text(
                         text = stringResource(
                             R.string.events_speed_vs_limit,
@@ -134,6 +138,16 @@ fun EventCard(
         }
     }
 }
+
+/**
+ * Tercer segmento del título: el detail tal cual lo manda el servidor (sensor y cantidad en
+ * combustible, geocerca, conductor, duración...). Regla abierta: cualquier tipo salvo OVERSPEED
+ * (donde detail es el umbral y va en la línea de velocidad), incluidos los que caen en
+ * CUSTOM/UNKNOWN. Null si no hay detail, para no dejar un "·" suelto.
+ * internal: EventMapScreen lo reutiliza para mostrarse coherente con la lista.
+ */
+internal fun AlertEvent.titleDetail(): String? =
+    if (type == AlertEventType.OVERSPEED) null else detail?.takeIf { it.isNotBlank() }
 
 @Composable
 private fun EventTypeIcon(type: AlertEventType) {
