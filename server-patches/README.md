@@ -20,6 +20,7 @@ Los archivos de esta carpeta son copias **literales y probadas** de un servidor 
 - [ ] Parche 8 — series temporales de parámetros (gráficas)
 - [ ] Cliente OAuth `ClientLite Password Grant Client` creado (`php artisan server:passport`)
 - [ ] Verificar login desde la app antes de entregar
+- [ ] Parche 9 — `devices/map` sin filtro de visibilidad
 
 ---
 
@@ -44,6 +45,7 @@ cp app/Http/Controllers/Api/ClientLite/SettingsController.php{,.bak}
 | `controllers/ServicesController.php` | `app/Http/Controllers/Api/ClientLite/` |
 | `controllers/ReportsController.php` | `app/Http/Controllers/Api/ClientLite/` |
 | `controllers/ParametersController.php` | `app/Http/Controllers/Api/ClientLite/` |
+| `controllers/DevicesController.php` | `app/Http/Controllers/Api/ClientLite/` |
 
 ⚠️ `.htaccess` y `SettingsController.php` **no se reemplazan enteros**: el original trae más cosas. Ver abajo qué línea añadir en cada uno.
 
@@ -181,6 +183,27 @@ Una serie sin datos **no se incluye** en la respuesta: la unidad no reporta ese 
 
 **Rendimiento verificado:** 7 días = 7425 posiciones → 500 puntos por serie, **1.9 s y 51 KB**.
 
+---
+
+## 9 · `devices/map` sin filtro de visibilidad
+
+**Síntoma:** una unidad desaparece del mapa de la app de forma intermitente: el contador de la barra de filtros baja (18 → 17) y el marcador se va. Al rato vuelve sola.
+
+**Causa:** `DevicesController@map` (ClientLite) llevaba `->visible()`, un scope que filtra por `user_device_pivot.active = 1` — es decir, **el checkbox de la lista de objetos de la WEB**, pensado como comodidad de monitoreo de escritorio.
+
+El parpadeo venía de una asimetría: **`map()` aplicaba el filtro y `latest()` no**. La app borra de Room toda unidad que `devices/map` no devuelve (`deleteMissing`), así que la unidad desmarcada se borraba al refrescar y reaparecía cuando `latest` la traía al reportar posición.
+
+**Archivo:** `app/Http/Controllers/Api/ClientLite/DevicesController.php` · **Método:** `map()`
+
+Se elimina la línea `->visible()`.
+
+**Decisión de producto:** la app muestra **siempre la flota completa**, sin importar qué unidades estén marcadas en la web. El campo `active` sigue viajando en el payload (la unidad desmarcada llega con `active: false`), pero la app lo ignora.
+
+⚠️ Solo afecta a la API móvil. La web usa `Frontend\DevicesController`, otro archivo.
+
+⚠️ Los demás `->visible()` de ClientLite (POIs, geocercas, rutas) **se dejan como están**: tienen su propio concepto de visibilidad.
+
+⚠️ El endpoint `devices` (lista de unidades) nunca llevó este filtro, de ahí que la unidad desmarcada siguiera apareciendo en la pestaña Unidades pero no en el mapa.
 ---
 
 ## Verificación rápida tras aplicar
