@@ -43,6 +43,7 @@ class ReportsController extends Controller
         12 => 'Robos de combustible',
         29 => 'Horas del motor Diariamente',
         43 => 'Rutas',
+        3  => 'Recorridos y paradas',
     ];
 
     protected function afterAuth($user)
