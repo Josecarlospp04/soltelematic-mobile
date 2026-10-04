@@ -143,7 +143,7 @@ Solo en rutas web (`routes/web.php` ~321-327). Toda la lógica vive en `ModalHel
 
 **Endpoints:** `GET reports/types`, `POST reports/generate`
 
-**Lista blanca** (en el controlador, ampliable sin publicar APK): `1` Información general · `40` Paradas · `4` Hoja de Viajes · `11` Rellenos de combustible · `12` Robos de combustible · `29` Horas del motor Diariamente · `43` Rutas
+**Lista blanca** (en el controlador, ampliable sin publicar APK): `1` Información general · `3` Recorridos y paradas · `40` Paradas · `4` Hoja de Viajes · `11` Rellenos de combustible · `12` Robos de combustible · `29` Horas del motor Diariamente · `43` Rutas
 
 ⚠️ **Generación síncrona**, sin cola. Con `generate => 1` se salta el paso de la URL intermedia que usa la web.
 ⚠️ **`devices_query` debe ser un query builder, NO una Collection** — el generador llama `isJoined()`. Y como `request()->merge()` solo acepta escalares/arrays, los datos se pasan con `$helper->setData($data)`.
