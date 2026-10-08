@@ -143,8 +143,9 @@ Solo en rutas web (`routes/web.php` ~321-327). Toda la lógica vive en `ModalHel
 
 **Endpoints:** `GET reports/types`, `POST reports/generate`
 
-**Lista blanca** (en el controlador, ampliable sin publicar APK): `1` Información general · `3` Recorridos y paradas · `40` Paradas · `4` Hoja de Viajes · `11` Rellenos de combustible · `12` Robos de combustible · `29` Horas del motor Diariamente · `43` Rutas
+**Lista blanca** (en el controlador, ampliable sin publicar APK): `1` Información general · `3` Recorridos y paradas · `40` Paradas · `4` Hoja de Viajes · `5` Exceso de velocidad · `7` Geocercas entradas/salidas · `8` Eventos · `11` Rellenos de combustible · `12` Robos de combustible · `25` Historial de objetos · `29` Horas del motor Diariamente · `43` Rutas · `79` Distancia diaria del conductor
 
+⚠️ **Campos extra por tipo:** cada clase de informe declara en `$validation` (protected, se lee con `ReflectionProperty`) los campos que exige. `reports/types` los expone en `requires[]` para que la app pinte el campo que toque sin hardcodear nada. Hoy: `5` exige `speed_limit`, `7` exige `geofences[]`, `25` exige `devices` (que la app ya manda siempre).
 ⚠️ **Generación síncrona**, sin cola. Con `generate => 1` se salta el paso de la URL intermedia que usa la web.
 ⚠️ **`devices_query` debe ser un query builder, NO una Collection** — el generador llama `isJoined()`. Y como `request()->merge()` solo acepta escalares/arrays, los datos se pasan con `$helper->setData($data)`.
 ⚠️ **`Report::download()` no es uniforme:** pdf/xlsx devuelven respuesta de Laravel; **html hace `header()` + `echo` sin `return`** → se captura con `ob_start()/ob_get_clean()`.

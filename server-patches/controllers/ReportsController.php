@@ -44,6 +44,11 @@ class ReportsController extends Controller
         29 => 'Horas del motor Diariamente',
         43 => 'Rutas',
         3  => 'Recorridos y paradas',
+        5  => 'Exceso de velocidad',
+        7  => 'Geocercas, entradas/salidas',
+        8  => 'Eventos',
+        25 => 'Historial de objetos',
+        79 => 'Distancia diaria del conductor',
     ];
 
     protected function afterAuth($user)
@@ -74,7 +79,21 @@ class ReportsController extends Controller
                 $property->setAccessible(true);
                 $formats   = array_values(array_intersect($property->getValue($report), self::ALLOWED_FORMATS));
 
-                return ['id' => (int) $id, 'name' => $name, 'formats' => $formats];
+                // Cada informe declara en $validation los campos extra que EXIGE (p. ej.
+                // OverspeedsReport pide speed_limit, GeofencesInOutReport pide geofences). La app
+                // no puede adivinarlos: se los decimos aca para que pinte el campo que toque sin
+                // hardcodear nada, y para que anadir un informe nuevo con requisitos propios no
+                // obligue a publicar un APK. Protected y sin getter, igual que $formats.
+                $validationProp = new \ReflectionProperty($report, 'validation');
+                $validationProp->setAccessible(true);
+                $requires = array_keys($validationProp->getValue($report) ?: []);
+
+                return [
+                    'id'       => (int) $id,
+                    'name'     => $name,
+                    'formats'  => $formats,
+                    'requires' => array_values($requires),
+                ];
             })
             ->values();
 
@@ -100,6 +119,9 @@ class ReportsController extends Controller
             'date_to'   => 'required|date_format:Y-m-d',
             'from_time' => 'nullable|regex:/^\d{2}:\d{2}$/',
             'to_time'   => 'nullable|regex:/^\d{2}:\d{2}$/',
+            'speed_limit'   => 'nullable|numeric|min:1',
+            'geofences'     => 'nullable|array',
+            'geofences.*'   => 'integer',
         ]);
 
         if ($validator->fails()) {
@@ -141,13 +163,14 @@ class ReportsController extends Controller
             'devices_query' => $devicesQuery,
             'from_time'     => $request->get('from_time', '00:00'),
             'to_time'       => $request->get('to_time', '00:00'),
-            'geofences'     => [],
+            // Las geocercas las elige el usuario en la app (las exige el informe 7). Si no
+            // manda ninguna, array vacio como antes.
+            'geofences'     => $request->get('geofences', []),
         ];
 
         $data['generate']      = 1;
         $data['devices']       = $ownedIds;
         $data['devices_query'] = $devicesQuery;
-        $data['geofences']     = [];
 
         $helper = app(\ModalHelpers\ReportModalHelper::class);
         $helper->setData($data);
