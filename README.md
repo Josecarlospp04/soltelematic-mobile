@@ -211,7 +211,7 @@ En desarrollo activo. Completo hasta la fecha:
 - Bandeja de alertas con badge de no vistos
 - Pantalla de Unidades: listado alfabético de toda la flota, independiente del mapa
 - Sistema de diseño con tokens propios y soporte white-label
-- Enlaces de soporte en Cuenta (plataforma web y WhatsApp)
+- Enlace de soporte en Cuenta (plataforma web)
 - Selector de tipo de mapa (normal, satélite, híbrido, terreno) con persistencia
 - Reproducción animada del recorrido en Historial (play/pausa, scrubber, 1×/2×/4×/8×)
 - Envío de comandos GPRS a las unidades, con formulario dinámico según lo que declare el servidor

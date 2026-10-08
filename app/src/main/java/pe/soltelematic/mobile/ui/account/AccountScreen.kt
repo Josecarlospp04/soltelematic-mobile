@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ChevronRight
@@ -35,8 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -45,7 +42,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -53,14 +49,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import pe.soltelematic.mobile.BuildConfig
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.network.serverRootUrl
 import pe.soltelematic.mobile.domain.model.VolumeUnit
 import pe.soltelematic.mobile.ui.theme.BrandLogo
-import pe.soltelematic.mobile.ui.theme.DefaultBrandSupportWhatsAppNumber
 import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicMinTouchTarget
 import pe.soltelematic.mobile.ui.theme.SoltelematicPillShape
@@ -68,7 +62,6 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
 import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 private val AvatarSize = 56.dp
-private const val WhatsAppUrl = "https://wa.me/$DefaultBrandSupportWhatsAppNumber"
 
 /**
  * Sprint 5, retematizado: perfil + "Acerca de" + salir. La sección NOTIFICACIONES del mockup no
@@ -85,16 +78,12 @@ fun AccountScreen(
     viewModel: AccountViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
-    val whatsAppUnavailableMessage = stringResource(R.string.account_support_whatsapp_unavailable)
 
     LaunchedEffect(Unit) {
         viewModel.loggedOut.collect { onLoggedOut() }
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.account_title), style = MaterialTheme.typography.titleLarge) },
@@ -129,11 +118,7 @@ fun AccountScreen(
                     onVolumeUnitSelected = viewModel::onVolumeUnitSelected
                 )
                 Spacer(modifier = Modifier.height(SoltelematicSpacing.xl))
-                SupportSection(
-                    onWhatsAppUnavailable = {
-                        coroutineScope.launch { snackbarHostState.showSnackbar(whatsAppUnavailableMessage) }
-                    }
-                )
+                SupportSection()
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -257,16 +242,19 @@ private fun VolumeUnitChip(label: String, selected: Boolean, onClick: () -> Unit
 }
 
 /**
- * Espacio que antes quedaba vacío entre la tarjeta de perfil y "Acerca de" -- dos enlaces útiles,
- * anclados arriba de ese espacio (no centrados ni pegados abajo, ver AccountScreen). La URL de la
- * plataforma web sale de BASE_URL vía serverRootUrl (no hardcodeada); si no fuera válida, esa fila
- * simplemente no se dibuja en vez de mostrar un enlace roto. El número de WhatsApp es la única
- * constante blanco-etiquetable de esta pantalla (ver DefaultBrandSupportWhatsAppNumber en Theme.kt).
+ * Espacio que antes quedaba vacío entre la tarjeta de perfil y "Acerca de" -- enlace útil,
+ * anclado arriba de ese espacio (no centrados ni pegados abajo, ver AccountScreen). La URL de la
+ * plataforma web sale de BASE_URL vía serverRootUrl (no hardcodeada).
+ *
+ * Defensa, no caso esperado: serverRootUrl solo devuelve null si BASE_URL no es una URL http(s)
+ * válida (p. ej. SOLTELEMATIC_BASE_URL ausente en local.properties, que deja BASE_URL = ""). Con un
+ * build bien configurado no ocurre; si ocurriera, se oculta la sección entera para no dejar un
+ * encabezado SOPORTE sin contenido.
  */
 @Composable
-private fun SupportSection(onWhatsAppUnavailable: () -> Unit) {
+private fun SupportSection() {
     val context = LocalContext.current
-    val webUrl = remember { serverRootUrl(BuildConfig.BASE_URL) }
+    val webUrl = remember { serverRootUrl(BuildConfig.BASE_URL) } ?: return
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -275,22 +263,11 @@ private fun SupportSection(onWhatsAppUnavailable: () -> Unit) {
             color = LocalSoltelematicColors.current.inkFaint,
             modifier = Modifier.padding(bottom = SoltelematicSpacing.sm)
         )
-        if (webUrl != null) {
-            SupportRow(
-                icon = Icons.AutoMirrored.Filled.OpenInNew,
-                title = stringResource(R.string.account_support_web_title),
-                subtitle = webUrl,
-                onClick = { openExternalUrl(context, webUrl) }
-            )
-            Spacer(modifier = Modifier.height(SoltelematicSpacing.sm))
-        }
         SupportRow(
-            icon = Icons.AutoMirrored.Filled.Chat,
-            title = stringResource(R.string.account_support_whatsapp_title),
-            subtitle = formatWhatsAppDisplayNumber(DefaultBrandSupportWhatsAppNumber),
-            onClick = {
-                if (!openExternalUrl(context, WhatsAppUrl)) onWhatsAppUnavailable()
-            }
+            icon = Icons.AutoMirrored.Filled.OpenInNew,
+            title = stringResource(R.string.account_support_web_title),
+            subtitle = webUrl,
+            onClick = { openExternalUrl(context, webUrl) }
         )
     }
 }
@@ -316,19 +293,7 @@ private fun SupportRow(icon: ImageVector, title: String, subtitle: String, onCli
     }
 }
 
-/**
- * [rawNumber] llega en el formato que espera wa.me (país + número, sin '+' ni espacios). El
- * subtítulo agrupa esos dígitos como "+<país> ddd ddd ddd" -- correcto para el número peruano por
- * defecto; un número blanco-etiquetable de otro país tomaría su propio formato cuando BrandConfig
- * lo traiga del servidor (ver comentario junto a DefaultBrandSupportWhatsAppNumber en Theme.kt).
- */
-private fun formatWhatsAppDisplayNumber(rawNumber: String): String {
-    val country = rawNumber.take(2)
-    val groups = rawNumber.drop(2).chunked(3)
-    return "+$country ${groups.joinToString(" ")}"
-}
-
-/** Intent externo (navegador o WhatsApp). Devuelve false si no hay app que lo resuelva. */
+/** Intent externo (navegador). Devuelve false si no hay app que lo resuelva. */
 private fun openExternalUrl(context: Context, url: String): Boolean =
     try {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))

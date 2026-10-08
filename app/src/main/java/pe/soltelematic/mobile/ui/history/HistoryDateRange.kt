@@ -14,7 +14,8 @@ data class HistoryDateRange(val from: LocalDate, val to: LocalDate, val preset: 
     companion object {
         // Tope duro del servidor (confirmado con el usuario): ninguna consulta debe pedir más de
         // 31 días de un tirón. "Elegir" clampea en vez de rechazar -- ver custom().
-        private const val MAX_SPAN_DAYS = 31L
+        // Visible para que Informes valide el mismo tope sin duplicar el número (ver ReportsUiState).
+        const val MAX_SPAN_DAYS = 31L
 
         fun today(): HistoryDateRange {
             val date = LocalDate.now()

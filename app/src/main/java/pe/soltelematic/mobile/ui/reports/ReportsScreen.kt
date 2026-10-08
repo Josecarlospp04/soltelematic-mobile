@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Description
@@ -44,6 +45,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -57,8 +64,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import java.io.File
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import org.koin.androidx.compose.koinViewModel
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.storage.reportFileUri
@@ -130,6 +144,13 @@ fun ReportsScreen(viewModel: ReportsViewModel = koinViewModel()) {
                     onFleetSearchQueryChanged = viewModel::onFleetSearchQueryChanged,
                     onDeviceToggled = viewModel::onDeviceToggled,
                     onDateRangeSelected = viewModel::onDateRangeSelected,
+                    onFromDateSelected = viewModel::onFromDateSelected,
+                    onToDateSelected = viewModel::onToDateSelected,
+                    onFromTimeSelected = viewModel::onFromTimeSelected,
+                    onToTimeSelected = viewModel::onToTimeSelected,
+                    onSpeedLimitChanged = viewModel::onSpeedLimitChanged,
+                    onGeofenceToggled = viewModel::onGeofenceToggled,
+                    onRetryGeofences = viewModel::onRetryGeofences,
                     onGenerate = viewModel::onGenerateReport
                 )
             }
@@ -150,9 +171,18 @@ private fun ReportForm(
     onFleetSearchQueryChanged: (String) -> Unit,
     onDeviceToggled: (Int) -> Unit,
     onDateRangeSelected: (HistoryDateRange) -> Unit,
+    onFromDateSelected: (LocalDate) -> Unit,
+    onToDateSelected: (LocalDate) -> Unit,
+    onFromTimeSelected: (LocalTime) -> Unit,
+    onToTimeSelected: (LocalTime) -> Unit,
+    onSpeedLimitChanged: (String) -> Unit,
+    onGeofenceToggled: (Int) -> Unit,
+    onRetryGeofences: () -> Unit,
     onGenerate: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
+    var editingTime by remember { mutableStateOf<DateTimeField?>(null) }
+    var editingDate by remember { mutableStateOf<DateTimeField?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -195,8 +225,8 @@ private fun ReportForm(
             }
         }
         items(uiState.visibleFleet, key = { it.id }) { asset ->
-            AssetCheckRow(
-                asset = asset,
+            CheckRow(
+                text = asset.name ?: stringResource(R.string.asset_unnamed),
                 checked = asset.id in uiState.selectedDeviceIds,
                 onToggle = { onDeviceToggled(asset.id) }
             )
@@ -213,6 +243,79 @@ private fun ReportForm(
                     dateRange = uiState.dateRange,
                     onPresetSelected = onDateRangeSelected,
                     onOpenCustomPicker = { showDatePicker = true }
+                )
+                DateTimeRow(
+                    label = stringResource(R.string.reports_from_label),
+                    date = uiState.dateRange.from,
+                    time = uiState.fromTime,
+                    onDateClick = { editingDate = DateTimeField.FROM },
+                    onTimeClick = { editingTime = DateTimeField.FROM }
+                )
+                DateTimeRow(
+                    label = stringResource(R.string.reports_to_label),
+                    date = uiState.dateRange.to,
+                    time = uiState.toTime,
+                    onDateClick = { editingDate = DateTimeField.TO },
+                    onTimeClick = { editingTime = DateTimeField.TO }
+                )
+                val rangeError = when {
+                    uiState.exceedsMaxSpan -> R.string.reports_span_too_long
+                    !uiState.isTimeRangeValid -> R.string.reports_time_range_invalid
+                    else -> null
+                }
+                if (rangeError != null) {
+                    Text(
+                        text = stringResource(rangeError),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = SoltelematicSpacing.lg, vertical = SoltelematicSpacing.xs)
+                    )
+                }
+            }
+        }
+        // Campos extra según ReportType.requires (nada hardcodeado por id de tipo). "devices" no
+        // pinta nada: lo cubre el selector de unidades de arriba.
+        if (uiState.unsupportedRequirements.isNotEmpty()) {
+            item {
+                Text(
+                    text = stringResource(
+                        R.string.reports_unsupported_requirement,
+                        uiState.unsupportedRequirements.joinToString(", ")
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = SoltelematicSpacing.lg, vertical = SoltelematicSpacing.sm)
+                )
+            }
+        }
+        if (uiState.needsSpeedLimit) {
+            item {
+                OutlinedTextField(
+                    value = uiState.speedLimitText,
+                    onValueChange = onSpeedLimitChanged,
+                    label = { Text(stringResource(R.string.reports_speed_limit_label)) },
+                    singleLine = true,
+                    isError = uiState.speedLimit == null,
+                    supportingText = if (uiState.speedLimit == null) {
+                        { Text(stringResource(R.string.reports_speed_limit_required)) }
+                    } else null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = SoltelematicShapes.extraSmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = SoltelematicSpacing.lg, vertical = SoltelematicSpacing.sm)
+                )
+            }
+        }
+        if (uiState.needsGeofences) {
+            item {
+                GeofencesPickerHeader(uiState = uiState, onRetry = onRetryGeofences)
+            }
+            items(uiState.geofences, key = { "geofence-${it.id}" }) { geofence ->
+                CheckRow(
+                    text = geofence.name,
+                    checked = geofence.id in uiState.selectedGeofenceIds,
+                    onToggle = { onGeofenceToggled(geofence.id) }
                 )
             }
         }
@@ -250,9 +353,16 @@ private fun ReportForm(
         }
     }
 
+    // Solo para el chip "Personalizado" de la barra de presets (rellena ambos extremos de una vez,
+    // con el tope de 31 días de HistoryDateRange.custom). Los campos desde/hasta usan un selector
+    // de UNA fecha cada uno. DateRangePickerState lanza si el inicio es posterior al fin, y ahora
+    // desde/hasta pueden quedar invertidos, así que en ese caso se abre con un solo día.
     if (showDatePicker) {
+        val pickerRange = uiState.dateRange.let {
+            if (it.from.isAfter(it.to)) HistoryDateRange(it.to, it.to, it.preset) else it
+        }
         HistoryDateRangePickerDialog(
-            initialRange = uiState.dateRange,
+            initialRange = pickerRange,
             onDismiss = { showDatePicker = false },
             onConfirm = { from, to ->
                 onDateRangeSelected(HistoryDateRange.custom(from, to))
@@ -260,6 +370,112 @@ private fun ReportForm(
             }
         )
     }
+
+    editingDate?.let { field ->
+        ReportDatePickerDialog(
+            initial = if (field == DateTimeField.FROM) uiState.dateRange.from else uiState.dateRange.to,
+            onDismiss = { editingDate = null },
+            onConfirm = { date ->
+                if (field == DateTimeField.FROM) onFromDateSelected(date) else onToDateSelected(date)
+                editingDate = null
+            }
+        )
+    }
+
+    editingTime?.let { field ->
+        ReportTimePickerDialog(
+            initial = if (field == DateTimeField.FROM) uiState.fromTime else uiState.toTime,
+            onDismiss = { editingTime = null },
+            onConfirm = { time ->
+                if (field == DateTimeField.FROM) onFromTimeSelected(time) else onToTimeSelected(time)
+                editingTime = null
+            }
+        )
+    }
+}
+
+private enum class DateTimeField { FROM, TO }
+
+private val DATE_FIELD_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+private val TIME_FIELD_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
+
+/** Como la web: etiqueta, fecha y hora en la misma fila. Cada campo abre su propio selector. */
+@Composable
+private fun DateTimeRow(
+    label: String,
+    date: LocalDate,
+    time: LocalTime,
+    onDateClick: () -> Unit,
+    onTimeClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SoltelematicSpacing.lg, vertical = SoltelematicSpacing.xs)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(96.dp)
+        )
+        OutlinedButton(
+            onClick = onDateClick,
+            shape = SoltelematicShapes.small,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = SoltelematicMinTouchTarget)
+        ) { Text(DATE_FIELD_FORMAT.format(date), style = MaterialTheme.typography.labelLarge) }
+        OutlinedButton(
+            onClick = onTimeClick,
+            shape = SoltelematicShapes.small,
+            modifier = Modifier.heightIn(min = SoltelematicMinTouchTarget)
+        ) { Text(TIME_FIELD_FORMAT.format(time), style = MaterialTheme.typography.labelLarge) }
+    }
+}
+
+// Los millis de DatePickerState son medianoche UTC del día calendario (mismo criterio que
+// HistoryDateRangePickerDialog): convertir con la zona del dispositivo podría mostrar otro día.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReportDatePickerDialog(initial: LocalDate, onDismiss: () -> Unit, onConfirm: (LocalDate) -> Unit) {
+    val state = rememberDatePickerState(
+        initialSelectedDateMillis = initial.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                enabled = state.selectedDateMillis != null,
+                onClick = {
+                    state.selectedDateMillis?.let { millis ->
+                        onConfirm(Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate())
+                    }
+                }
+            ) { Text(stringResource(R.string.reports_time_confirm)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.reports_time_cancel)) } }
+    ) {
+        DatePicker(state = state)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReportTimePickerDialog(initial: LocalTime, onDismiss: () -> Unit, onConfirm: (LocalTime) -> Unit) {
+    val state = rememberTimePickerState(initialHour = initial.hour, initialMinute = initial.minute, is24Hour = true)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
+                Text(stringResource(R.string.reports_time_confirm))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.reports_time_cancel)) } },
+        text = { TimePicker(state = state) }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -346,7 +562,7 @@ private fun reportFormatLabel(format: String): String = when (format) {
 }
 
 @Composable
-private fun AssetCheckRow(asset: Asset, checked: Boolean, onToggle: () -> Unit) {
+private fun CheckRow(text: String, checked: Boolean, onToggle: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -357,12 +573,60 @@ private fun AssetCheckRow(asset: Asset, checked: Boolean, onToggle: () -> Unit) 
     ) {
         Checkbox(checked = checked, onCheckedChange = null)
         Text(
-            text = asset.name ?: stringResource(R.string.asset_unnamed),
+            text = text,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = SoltelematicSpacing.sm)
         )
     }
+}
+
+/** Título + estado de la carga (progreso / error con reintento / vacío / "elige al menos una"). */
+@Composable
+private fun GeofencesPickerHeader(uiState: ReportsUiState, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SoltelematicSpacing.lg, vertical = SoltelematicSpacing.sm)
+    ) {
+        Text(
+            text = pluralStringResource(
+                R.plurals.reports_geofences_selected_count,
+                uiState.selectedGeofenceIds.size,
+                uiState.selectedGeofenceIds.size
+            ),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        when {
+            uiState.isLoadingGeofences -> CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(top = SoltelematicSpacing.sm)
+                    .size(SoltelematicIconSpec.small),
+                strokeWidth = SoltelematicIconSpec.strokeWidth
+            )
+            uiState.geofencesLoadFailed -> {
+                GeofenceHint(stringResource(R.string.reports_geofences_error))
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.reports_retry_types), style = MaterialTheme.typography.labelLarge)
+                }
+            }
+            uiState.geofencesLoaded && uiState.geofences.isEmpty() ->
+                GeofenceHint(stringResource(R.string.reports_geofences_empty))
+            uiState.selectedGeofenceIds.isEmpty() ->
+                GeofenceHint(stringResource(R.string.reports_geofences_required))
+        }
+    }
+}
+
+@Composable
+private fun GeofenceHint(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.padding(top = SoltelematicSpacing.xs)
+    )
 }
 
 @Composable

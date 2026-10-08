@@ -254,6 +254,18 @@
     <string name="reports_format_xlsx">Excel (XLSX)</string>
     <string name="reports_format_pdf">PDF</string>
     <string name="reports_date_range_label">Rango de fechas</string>
+    <string name="reports_from_label">Fecha desde</string>
+    <string name="reports_to_label">Fecha hasta</string>
+    <string name="reports_time_range_invalid">La fecha y hora final debe ser posterior a la inicial.</string>
+    <string name="reports_span_too_long">El rango no puede superar 31 días.</string>
+    <string name="reports_speed_limit_label">Límite de velocidad (km/h)</string>
+    <string name="reports_speed_limit_required">Indica el límite de velocidad.</string>
+    <string name="reports_geofences_required">Selecciona al menos una geocerca.</string>
+    <string name="reports_geofences_empty">No tienes geocercas creadas. Crea una desde el mapa.</string>
+    <string name="reports_geofences_error">No se pudieron cargar las geocercas.</string>
+    <string name="reports_unsupported_requirement">Este informe necesita datos que la app todavía no puede pedir (%1$s). Genéralo desde la plataforma web.</string>
+    <string name="reports_time_confirm">Aceptar</string>
+    <string name="reports_time_cancel">Cancelar</string>
     <string name="reports_generate">Generar informe</string>
     <string name="reports_generic_error">No se pudo generar el informe. Intenta de nuevo.</string>
     <string name="reports_types_error">No se pudieron cargar los tipos de informe.</string>
@@ -263,6 +275,11 @@
     <string name="reports_share">Compartir</string>
     <string name="reports_generate_another">Generar otro informe</string>
     <string name="reports_cannot_open_file">No hay una app instalada para abrir este archivo.</string>
+
+    <plurals name="reports_geofences_selected_count">
+        <item quantity="one">%d geocerca seleccionada</item>
+        <item quantity="other">%d geocercas seleccionadas</item>
+    </plurals>
 
     <plurals name="reports_devices_selected_count">
         <item quantity="one">%d unidad seleccionada</item>
@@ -285,8 +302,6 @@
     <string name="account_logout">Cerrar sesión</string>
     <string name="account_support_title">Soporte</string>
     <string name="account_support_web_title">Plataforma web</string>
-    <string name="account_support_whatsapp_title">Soporte por WhatsApp</string>
-    <string name="account_support_whatsapp_unavailable">No se pudo abrir WhatsApp. Verifica que esté instalado.</string>
     <string name="account_units_section_title">Unidades</string>
     <string name="account_volume_unit_label">Unidad de volumen</string>
     <string name="account_volume_unit_liters">Litros</string>

@@ -12,7 +12,7 @@ import pe.soltelematic.mobile.domain.model.ReportType
  */
 fun ReportTypeDto.toDomain(): ReportType? {
     val nameValue = name ?: return null
-    return ReportType(id = id, name = nameValue, formats = formats)
+    return ReportType(id = id, name = nameValue, formats = formats, requires = requires)
 }
 
 fun ReportGenerateRequest.toDto(): ReportGenerateRequestDto = ReportGenerateRequestDto(
@@ -22,5 +22,7 @@ fun ReportGenerateRequest.toDto(): ReportGenerateRequestDto = ReportGenerateRequ
     dateFrom = dateFrom,
     dateTo = dateTo,
     fromTime = fromTime,
-    toTime = toTime
+    toTime = toTime,
+    speedLimit = speedLimit,
+    geofences = geofenceIds
 )

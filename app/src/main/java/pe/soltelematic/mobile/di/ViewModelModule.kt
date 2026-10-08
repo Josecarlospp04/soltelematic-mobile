@@ -28,5 +28,5 @@ val viewModelModule = module {
     viewModel { EventsViewModel(get(), get(), get()) }
     viewModel { EventMapViewModel(get(), get(), get()) }
     viewModel { UnitsViewModel(get()) }
-    viewModel { ReportsViewModel(get(), get()) }
+    viewModel { ReportsViewModel(get(), get(), get()) }
 }

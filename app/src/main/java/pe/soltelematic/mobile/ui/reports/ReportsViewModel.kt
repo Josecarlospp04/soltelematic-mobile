@@ -11,14 +11,14 @@ import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.domain.model.ReportGenerateRequest
 import pe.soltelematic.mobile.domain.repository.AssetRepository
+import pe.soltelematic.mobile.domain.repository.GeofencesRepository
 import pe.soltelematic.mobile.domain.repository.ReportsRepository
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import pe.soltelematic.mobile.ui.history.HistoryDateRange
 
-// El servidor pide from_time/to_time por separado de date_from/date_to (ver
-// ReportGenerateRequestDto) pero esta pantalla no ofrece elegir hora, solo fecha (mismo alcance
-// que pidió la tarea) -- "00:00" para ambos es el mismo valor que trae el ejemplo real verificado
-// vía curl para un rango de días completos.
-private const val REPORT_FULL_DAY_TIME = "00:00"
+private val REPORT_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
  * fleet viene de AssetRepository.observeAssets() (Flow respaldado por Room), mismo criterio que
@@ -28,7 +28,8 @@ private const val REPORT_FULL_DAY_TIME = "00:00"
  */
 class ReportsViewModel(
     private val reportsRepository: ReportsRepository,
-    private val assetRepository: AssetRepository
+    private val assetRepository: AssetRepository,
+    private val geofencesRepository: GeofencesRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReportsUiState())
@@ -57,7 +58,7 @@ class ReportsViewModel(
                         selectedTypeId = firstType?.id,
                         selectedFormat = firstType?.formats?.firstOrNull()
                     )
-                }
+                }.also { loadGeofencesIfNeeded() }
                 is ApiResult.Error -> _uiState.update { it.copy(isLoadingTypes = false, typesLoadFailed = true) }
             }
         }
@@ -73,6 +74,46 @@ class ReportsViewModel(
             val type = state.types.firstOrNull { it.id == typeId } ?: return@update state
             val format = state.selectedFormat.takeIf { it in type.formats } ?: type.formats.firstOrNull()
             state.copy(selectedTypeId = typeId, selectedFormat = format)
+        }
+        loadGeofencesIfNeeded()
+    }
+
+    /**
+     * Los campos extra (límite de velocidad, geocercas) se CONSERVAN al cambiar de tipo, igual que
+     * unidades y fechas: son datos del usuario, no del tipo, y ir y volver entre dos informes
+     * parecidos no debería obligarlo a reescribirlos. Lo que cambia con el tipo es solo qué se
+     * pinta y qué se envía (toReportGenerateRequest manda únicamente lo que ese tipo requiere).
+     */
+    fun onSpeedLimitChanged(text: String) {
+        _uiState.update { it.copy(speedLimitText = text.filter(Char::isDigit).take(3)) }
+    }
+
+    fun onGeofenceToggled(id: Int) {
+        _uiState.update { state ->
+            val selected = state.selectedGeofenceIds
+            state.copy(selectedGeofenceIds = if (id in selected) selected - id else selected + id)
+        }
+    }
+
+    fun onRetryGeofences() = loadGeofencesIfNeeded()
+
+    /**
+     * Reutiliza GeofencesRepository (el mismo singleton de Koin que Mapa), no una llamada nueva.
+     * Perezoso: solo se pide cuando el tipo elegido requiere geocercas, y una sola vez con éxito.
+     */
+    private fun loadGeofencesIfNeeded() {
+        val state = _uiState.value
+        if (!state.needsGeofences || state.geofencesLoaded || state.isLoadingGeofences) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingGeofences = true, geofencesLoadFailed = false) }
+            when (val result = geofencesRepository.getGeofences()) {
+                is ApiResult.Success -> _uiState.update {
+                    it.copy(isLoadingGeofences = false, geofences = result.data, geofencesLoaded = true)
+                }
+                is ApiResult.Error -> _uiState.update {
+                    it.copy(isLoadingGeofences = false, geofencesLoadFailed = true)
+                }
+            }
         }
     }
 
@@ -93,6 +134,22 @@ class ReportsViewModel(
 
     fun onDateRangeSelected(range: HistoryDateRange) {
         _uiState.update { it.copy(dateRange = range) }
+    }
+
+    fun onFromDateSelected(date: LocalDate) {
+        _uiState.update { it.withFromDate(date) }
+    }
+
+    fun onToDateSelected(date: LocalDate) {
+        _uiState.update { it.withToDate(date) }
+    }
+
+    fun onFromTimeSelected(time: LocalTime) {
+        _uiState.update { it.copy(fromTime = time) }
+    }
+
+    fun onToTimeSelected(time: LocalTime) {
+        _uiState.update { it.copy(toTime = time) }
     }
 
     fun onGenerateReport() {
@@ -126,30 +183,35 @@ class ReportsViewModel(
  * (pura, sin coroutines) para poder fijar con un test la regla de dateTo de abajo sin depender de
  * viewModelScope.
  *
- * dateTo = dateRange.to + 1 día, NO dateRange.to tal cual: el servidor interpreta date_to como el
- * INSTANTE final del rango (medianoche de ese día), no como "hasta el final de ese día" --
- * confirmado con un informe real vacío ("Nada se ha encontrado en su solicitud") pese a que las
- * unidades sí tenían recorridos: la cabecera del informe mostraba "17-09-2026 00:00:00 - 17-09-2026
- * 00:00:00", un rango de duración CERO porque from == to (HistoryDateRange representa "ayer" como
- * un solo día). Sumar un día empuja el límite a la medianoche SIGUIENTE, que es la que realmente
- * cubre el último día completo -- mismo patrón que los curl que sí funcionaron (date_from=
- * 2026-09-17 con date_to=2026-09-18 para cubrir el 17 entero), y se aplica igual sin importar
- * cuántos días abarque el rango: para "7 días" empuja el límite más allá del ÚLTIMO día, no del
- * primero, así que la duración real del rango pedido no cambia, solo se corrige el corte a
- * medianoche. No se toca HistoryDateRange: ese modelo es correcto para Historial, que usa otro
- * endpoint con otro criterio -- el ajuste es solo de esta pantalla, al armar el request.
+ * Hora final por defecto (00:00) = "el día elegido entero": dateTo = dateRange.to + 1 día. El
+ * servidor interpreta date_to + to_time como el INSTANTE final del rango, no como "hasta el final
+ * de ese día" -- confirmado con un informe real vacío pese a que las unidades sí tenían
+ * recorridos: la cabecera mostraba "17-09-2026 00:00:00 - 17-09-2026 00:00:00", un rango de
+ * duración CERO porque from == to (HistoryDateRange representa "ayer" como un solo día). Sumar un
+ * día empuja el límite a la medianoche SIGUIENTE, que es la que cubre el último día completo, sea
+ * cual sea el número de días del rango. No se toca HistoryDateRange: ese modelo es correcto para
+ * Historial, que usa otro endpoint con otro criterio.
+ *
+ * Hora final explícita (distinta de 00:00): el usuario ya está diciendo el instante exacto, así
+ * que dateTo = dateRange.to sin sumar nada; sumar el día desplazaría el rango un día entero. Ver
+ * ReportsUiState.reportEnd, que es la única fuente de esta regla (la comparten el request y la
+ * validación). Costo asumido: no se puede pedir "hasta las 00:00 del día D" como fin explícito,
+ * pero eso equivale a elegir D-1 con la hora por defecto.
  */
 fun ReportsUiState.toReportGenerateRequest(): ReportGenerateRequest? {
     val typeId = selectedTypeId ?: return null
     val format = selectedFormat ?: return null
-    if (selectedDeviceIds.isEmpty()) return null
+    if (selectedDeviceIds.isEmpty() || !isTimeRangeValid || exceedsMaxSpan || !requirementsSatisfied) return null
     return ReportGenerateRequest(
         typeId = typeId,
         format = format,
         deviceIds = selectedDeviceIds.toList(),
         dateFrom = dateRange.from.toString(), // LocalDate.toString() ya es ISO "yyyy-MM-dd".
-        dateTo = dateRange.to.plusDays(1).toString(),
-        fromTime = REPORT_FULL_DAY_TIME,
-        toTime = REPORT_FULL_DAY_TIME
+        dateTo = reportEnd().toLocalDate().toString(),
+        fromTime = fromTime.format(REPORT_TIME_FORMAT),
+        toTime = toTime.format(REPORT_TIME_FORMAT),
+        // Solo lo que el tipo declara en requires: un valor que quedó en el estado de otro tipo no se envía.
+        speedLimit = if (needsSpeedLimit) speedLimit else null,
+        geofenceIds = if (needsGeofences) selectedGeofenceIds.toList() else null
     )
 }

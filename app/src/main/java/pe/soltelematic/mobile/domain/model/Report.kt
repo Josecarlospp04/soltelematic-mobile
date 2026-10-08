@@ -8,7 +8,8 @@ package pe.soltelematic.mobile.domain.model
 data class ReportType(
     val id: Int,
     val name: String,
-    val formats: List<String>
+    val formats: List<String>,
+    val requires: List<String> = emptyList()
 )
 
 /**
@@ -23,7 +24,9 @@ data class ReportGenerateRequest(
     val dateFrom: String,
     val dateTo: String,
     val fromTime: String,
-    val toTime: String
+    val toTime: String,
+    val speedLimit: Int? = null,
+    val geofenceIds: List<Int>? = null
 )
 
 /**

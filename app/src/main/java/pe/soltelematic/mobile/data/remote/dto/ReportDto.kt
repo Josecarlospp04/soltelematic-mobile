@@ -24,7 +24,10 @@ data class ReportTypesResponseDto(
 data class ReportTypeDto(
     val id: Int,
     val name: String? = null,
-    val formats: List<String> = emptyList()
+    val formats: List<String> = emptyList(),
+    // Campos extra que el servidor exige para generar este tipo (ej. "speed_limit", "geofences",
+    // "devices"). La app no sabe de antemano cuáles hay: los lee de acá (ver ReportRequirement).
+    val requires: List<String> = emptyList()
 )
 
 /**
@@ -45,5 +48,9 @@ data class ReportGenerateRequestDto(
     @SerialName("date_from") val dateFrom: String,
     @SerialName("date_to") val dateTo: String,
     @SerialName("from_time") val fromTime: String,
-    @SerialName("to_time") val toTime: String
+    @SerialName("to_time") val toTime: String,
+    // Solo se envían si el tipo los requiere; null (default) = no se serializan (Json por defecto
+    // no codifica valores default), así que el body de los demás tipos no cambia.
+    @SerialName("speed_limit") val speedLimit: Int? = null,
+    val geofences: List<Int>? = null
 )
