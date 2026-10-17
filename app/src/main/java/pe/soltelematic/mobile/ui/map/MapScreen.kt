@@ -47,12 +47,15 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,16 +63,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import pe.soltelematic.mobile.R
+import pe.soltelematic.mobile.domain.model.Asset
 import pe.soltelematic.mobile.domain.model.AssetFilter
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
@@ -80,6 +88,7 @@ import pe.soltelematic.mobile.ui.map.engine.GeofenceDraftPreview
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.MapEngine
 import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
+import pe.soltelematic.mobile.ui.map.engine.MapTailData
 import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicElevation
@@ -112,10 +121,24 @@ fun MapScreen(
     // SharedFlow sin replay.
     LaunchedEffect(Unit) {
         launch(start = CoroutineStart.UNDISPATCHED) {
-            viewModel.centerOnAsset.collect { point -> cameraController.centerOn(point) }
+            viewModel.centerOnAsset.collect { point ->
+                // focusOnAsset ya dejó focusedAssetId en el estado antes de emitir: se encuadra
+                // igual que una selección por marcador (cola + posición), sin hoja.
+                val state = viewModel.uiState.value
+                val asset = state.assets.firstOrNull { it.id == state.highlightedAssetId }
+                cameraController.frame(asset?.framePoints() ?: listOf(point))
+            }
         }
         viewModel.consumeFocusRequests()
     }
+
+    // Altura que la hoja inferior tapa del mapa: borde superior de la hoja (ventana) y borde
+    // inferior del mapa (ventana). Ver mapContentPadding.
+    var sheetTopPx by remember { mutableStateOf<Float?>(null) }
+    var mapBottomPx by remember { mutableIntStateOf(0) }
+    // Padding inferior que el mapa YA tiene aplicado (se escribe en un SideEffect tras componer
+    // mapEngine.Content): el encuadre espera a esto, no solo a que la hoja esté medida.
+    var appliedOverlapPx by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         viewModel.autoFitCamera.collect { positions -> cameraController.fitAll(positions) }
@@ -165,8 +188,27 @@ fun MapScreen(
     var topOverlayHeightPx by remember { mutableIntStateOf(0) }
     var fabColumnWidthPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
-    val mapContentPadding = remember(topOverlayHeightPx, fabColumnWidthPx, density) {
-        with(density) { PaddingValues(top = topOverlayHeightPx.toDp(), end = fabColumnWidthPx.toDp()) }
+    // Parte de la hoja que cae sobre el mapa (0 sin hoja). El padding del SDK además deja el logo
+    // de Google por encima de la hoja.
+    val sheetOverlapPx = sheetTopPx?.let { top -> (mapBottomPx - top).toInt().coerceAtLeast(0) } ?: 0
+    val mapContentPadding = remember(topOverlayHeightPx, fabColumnWidthPx, sheetOverlapPx, density) {
+        with(density) {
+            PaddingValues(top = topOverlayHeightPx.toDp(), end = fabColumnWidthPx.toDp(), bottom = sheetOverlapPx.toDp())
+        }
+    }
+
+    // Al seleccionar una unidad tocando su marcador: encuadre de cola + posición dentro de la zona
+    // visible (ver MapCameraController.frame). Llave = id, no la posición: los sondeos no deben
+    // volver a mover la cámara mientras el usuario explora con la unidad seleccionada.
+    LaunchedEffect(uiState.selectedAssetId) {
+        if (uiState.selectedAssetId == null) return@LaunchedEffect
+        // Antes de animar: esperar a que la hoja esté asentada y medida, y a que el padding ya
+        // aplicado al mapa (recomposición) refleje esa altura; si no, el primer encuadre usa el
+        // padding viejo. Con tope de espera para no quedar colgado si la hoja no reporta.
+        withTimeoutOrNull(2000) { snapshotFlow { appliedOverlapPx }.first { it > 0 } }
+        withFrameNanos { }
+        val selected = viewModel.uiState.value.selectedAsset ?: return@LaunchedEffect
+        cameraController.frame(selected.framePoints())
     }
 
     // remember(uiState.visibleAssets, solColors): Asset es data class, así que dos listas con el
@@ -203,7 +245,27 @@ fun MapScreen(
     val geofenceCreation = uiState.geofenceCreation
     val isDrawingGeofence = geofenceCreation != null
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Cola SOLO de la unidad resaltada (hoja abierta o foco de "Ver en mapa"). Se recalcula con
+    // cada sondeo porque sale de uiState.assets.
+    val brandColorArgb = MaterialTheme.colorScheme.primary.toArgb()
+    val highlightedAsset = uiState.assets.firstOrNull { it.id == uiState.highlightedAssetId }
+    val tailData = remember(highlightedAsset, brandColorArgb, isDrawingGeofence) {
+        if (isDrawingGeofence || highlightedAsset == null || highlightedAsset.tail.isEmpty()) return@remember null
+        val points = highlightedAsset.framePoints()
+        val color = highlightedAsset.tailColorHex
+            ?.takeIf { it.isNotBlank() }
+            ?.let { hex -> runCatching { android.graphics.Color.parseColor(hex) }.getOrNull() }
+            ?: brandColorArgb
+        MapTailData(points, color)
+    }
+
+    SideEffect { appliedOverlapPx = sheetOverlapPx }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { coords -> mapBottomPx = (coords.positionInWindow().y + coords.size.height).toInt() }
+    ) {
         mapEngine.Content(
             modifier = Modifier.fillMaxSize(),
             cameraController = cameraController,
@@ -230,7 +292,8 @@ fun MapScreen(
                     GeofenceDrawType.CIRCLE -> GeofenceDraftPreview.Circle(creation.circleCenter, creation.circleRadiusMeters)
                     null -> null
                 }
-            }
+            },
+            tail = tailData
         )
 
         // El mapa dibuja a pantalla completa (enableEdgeToEdge en MainActivity), pero estos
@@ -334,7 +397,8 @@ fun MapScreen(
                 isAddressLoading = uiState.isSelectedAssetAddressLoading,
                 onDismiss = viewModel::onBottomSheetDismissed,
                 onOpenDetail = { onOpenAssetDetail(asset.id) },
-                onOpenHistory = { onOpenHistory(asset.id) }
+                onOpenHistory = { onOpenHistory(asset.id) },
+                onSheetTopChanged = { sheetTopPx = it }
             )
         }
     }
@@ -560,4 +624,19 @@ private fun centerOnMyLocation(context: Context, cameraController: MapCameraCont
         .mapNotNull { provider -> runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull() }
         .maxByOrNull { it.time }
     location?.let { cameraController.centerOn(GeoPoint(it.latitude, it.longitude)) }
+}
+
+/**
+ * Puntos a encuadrar y a dibujar: la cola (antigua -> reciente) más la posición actual si difiere
+ * del último punto, para que la línea llegue al marcador aunque el servidor aún no la haya añadido.
+ * Sin cola, solo la posición.
+ */
+private fun Asset.framePoints(): List<GeoPoint> {
+    val current = position
+    return when {
+        current == null -> tail
+        tail.isEmpty() -> listOf(current)
+        current != tail.last() -> tail + current
+        else -> tail
+    }
 }

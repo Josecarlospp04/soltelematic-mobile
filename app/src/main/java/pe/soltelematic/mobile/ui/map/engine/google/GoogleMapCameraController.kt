@@ -1,12 +1,15 @@
 package pe.soltelematic.mobile.ui.map.engine.google
 
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.maps.android.compose.CameraPositionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlin.math.ln
+import kotlin.math.tan
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 
@@ -15,6 +18,9 @@ import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 // pantalla, esto es solo para que las unidades de los bordes no queden pegadas al filo del área
 // que sí queda libre.
 private const val FIT_ALL_PADDING_PX = 120
+
+// Fracción del área visible que ocupa la cola al encuadrar: el resto es margen.
+private const val FIT_FRACTION = 0.8
 
 /**
  * cameraPositionState queda accesible (no privado) porque GoogleMapEngine.Content necesita
@@ -39,6 +45,58 @@ class GoogleMapCameraController(
     override fun moveInstantly(point: GeoPoint) {
         val current = cameraPositionState.position
         cameraPositionState.position = CameraPosition(LatLng(point.lat, point.lng), current.zoom, current.tilt, current.bearing)
+    }
+
+    // Lo asigna GoogleMapEngine.Content (MapEffect) al crearse el mapa; null antes de eso.
+    var googleMap: GoogleMap? = null
+
+    // Padding efectivo (px: izquierda, arriba, derecha, abajo) que GoogleMapEngine.Content le pasa al
+    // mapa. frame() lo vuelve a fijar justo antes de animar, así el encuadre no depende de si la
+    // recomposición ya lo aplicó al SDK.
+    var paddingPx: IntArray? = null
+
+    override fun frame(points: List<GeoPoint>) {
+        if (points.isEmpty()) return
+        val map = googleMap
+        if (points.size == 1 || map == null) {
+            centerOn(points.last())
+            return
+        }
+        val bounds = LatLngBounds.Builder().apply {
+            points.forEach { include(LatLng(it.lat, it.lng)) }
+        }.build()
+        scope.launch {
+            paddingPx?.let { (l, t, r, bt) -> map.setPadding(l, t, r, bt) }
+            // Zoom calculado a mano (no newLatLngBounds + setMaxZoomPreference: con el zoom recortado
+            // el SDK dejaba los límites descentrados). newLatLngZoom centra en el área con padding.
+            val visible = cameraPositionState.projection?.visibleRegion?.latLngBounds
+            val zoom = if (visible == null) {
+                MapCameraController.DEFAULT_ZOOM
+            } else {
+                minOf(MapCameraController.DEFAULT_ZOOM, fitZoom(bounds, visible, cameraPositionState.position.zoom))
+            }
+            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(bounds.center, zoom))
+        }
+    }
+
+    /**
+     * Zoom al que [bounds] ocupa FIT_FRACTION del área visible (la del mapa ya con padding,
+     * [visible] = visibleRegion a [currentZoom]). Cada zoom de menos duplica lo que cabe, así que
+     * basta la razón de tamaños; la latitud se compara en proyección Mercator.
+     */
+    private fun fitZoom(bounds: LatLngBounds, visible: LatLngBounds, currentZoom: Float): Float {
+        fun mercatorY(latDeg: Double): Double {
+            val lat = Math.toRadians(latDeg.coerceIn(-85.0, 85.0))
+            return ln(tan(Math.PI / 4 + lat / 2))
+        }
+        val boundsW = Math.toRadians(bounds.northeast.longitude - bounds.southwest.longitude)
+        val boundsH = mercatorY(bounds.northeast.latitude) - mercatorY(bounds.southwest.latitude)
+        val visibleW = Math.toRadians(visible.northeast.longitude - visible.southwest.longitude)
+        val visibleH = mercatorY(visible.northeast.latitude) - mercatorY(visible.southwest.latitude)
+        val ratio = maxOf(boundsW / (visibleW * FIT_FRACTION), boundsH / (visibleH * FIT_FRACTION))
+        // Límites sin extensión (puntos casi idénticos): no hay nada que encuadrar, vale el tope.
+        if (ratio <= 0.0 || ratio.isNaN()) return MapCameraController.DEFAULT_ZOOM
+        return (currentZoom - ln(ratio) / ln(2.0)).toFloat()
     }
 
     override fun fitAll(points: List<GeoPoint>) {

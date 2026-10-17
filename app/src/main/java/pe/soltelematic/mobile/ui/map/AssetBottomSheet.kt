@@ -26,7 +26,13 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -70,10 +76,28 @@ fun AssetBottomSheet(
     isAddressLoading: Boolean,
     onDismiss: () -> Unit,
     onOpenDetail: () -> Unit,
-    onOpenHistory: () -> Unit
+    onOpenHistory: () -> Unit,
+    // Borde superior de la hoja en px de ventana, ya asentada (no durante la animación de
+    // apertura); null al cerrarse. MapScreen lo convierte en padding inferior del mapa.
+    onSheetTopChanged: (Float?) -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState()
+    LaunchedEffect(sheetState) {
+        snapshotFlow {
+            // requireOffset lanza mientras las anclas no están medidas: se trata como "aún no".
+            runCatching {
+                // Hidden (estado inicial, offset = alto de pantalla) no cuenta como asentada: el
+                // encuadre tomaría un padding inferior de 0 y la unidad quedaría bajo la hoja.
+                val settled = sheetState.currentValue == sheetState.targetValue &&
+                    sheetState.currentValue != SheetValue.Hidden
+                if (settled) sheetState.requireOffset() else null
+            }.getOrNull()
+        }.distinctUntilChanged().collect { top -> if (top != null) onSheetTopChanged(top) }
+    }
+    DisposableEffect(Unit) { onDispose { onSheetTopChanged(null) } }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         shape = SoltelematicBottomSheetShape,
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.outlineVariant) }

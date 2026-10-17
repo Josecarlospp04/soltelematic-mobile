@@ -39,6 +39,9 @@ fun AssetDto.toEntity(iconUrlResolver: IconUrlResolver): AssetEntity = AssetEnti
 private fun AssetCoordinatesDto.toTailPoint(): TailPoint? {
     val latValue = lat?.toDoubleOrNull() ?: return null
     val lngValue = lng?.toDoubleOrNull() ?: return null
+    // Fuera de rango o (0,0) = punto basura del GPS: se descarta para no dibujar líneas hacia África.
+    if (latValue !in -90.0..90.0 || lngValue !in -180.0..180.0) return null
+    if (latValue == 0.0 && lngValue == 0.0) return null
     return TailPoint(latValue, lngValue)
 }
 

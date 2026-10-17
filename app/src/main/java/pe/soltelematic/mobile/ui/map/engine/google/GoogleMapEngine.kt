@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -44,6 +45,7 @@ import pe.soltelematic.mobile.ui.map.engine.GeofenceDraftPreview
 import pe.soltelematic.mobile.ui.map.engine.MapCameraController
 import pe.soltelematic.mobile.ui.map.engine.MapEngine
 import pe.soltelematic.mobile.ui.map.engine.MapMarkerData
+import pe.soltelematic.mobile.ui.map.engine.MapTailData
 import com.google.maps.android.compose.MapType as GoogleMapType
 
 private const val GEOFENCE_STROKE_WIDTH_PX = 4f
@@ -51,6 +53,7 @@ private const val GEOFENCE_FILL_ALPHA_ACTIVE = 0.15f
 private const val GEOFENCE_FILL_ALPHA_INACTIVE = 0.08f
 private const val GEOFENCE_STROKE_ALPHA_ACTIVE = 1f
 private const val GEOFENCE_STROKE_ALPHA_INACTIVE = 0.6f
+private const val TAIL_STROKE_WIDTH_PX = 8f
 private const val FALLBACK_GEOFENCE_COLOR = "#9E9E9E" // mismo gris neutro que MarkerIconCache
 private val INACTIVE_GEOFENCE_STROKE_PATTERN: List<PatternItem> = listOf(Dash(20f), Gap(12f))
 
@@ -117,7 +120,8 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         onMapClick: (GeoPoint) -> Unit,
         contentPadding: PaddingValues,
         mapType: MapType,
-        draft: GeofenceDraftPreview?
+        draft: GeofenceDraftPreview?,
+        tail: MapTailData?
     ) {
         // Casteo seguro: el único MapCameraController que existe hoy es el que devuelve
         // rememberCameraController() de esta misma clase.
@@ -149,6 +153,17 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
             bottom = contentPadding.calculateBottomPadding() + systemNavigationBarHeight + GOOGLE_ATTRIBUTION_RESERVED_HEIGHT
         )
 
+        SideEffect {
+            with(density) {
+                googleController.paddingPx = intArrayOf(
+                    effectiveContentPadding.calculateLeftPadding(layoutDirection).roundToPx(),
+                    effectiveContentPadding.calculateTopPadding().roundToPx(),
+                    effectiveContentPadding.calculateRightPadding(layoutDirection).roundToPx(),
+                    effectiveContentPadding.calculateBottomPadding().roundToPx()
+                )
+            }
+        }
+
         GoogleMap(
             modifier = modifier,
             cameraPositionState = googleController.cameraPositionState,
@@ -172,9 +187,23 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
 
             draft?.Draw(previewColor = draftPreviewColor)
 
+            // Sin RouteSimplifier: son ~11 puntos. zIndex 0 queda por debajo del anillo (1f) y de
+            // los marcadores.
+            if (tail != null && tail.points.size >= 2) {
+                Polyline(
+                    points = tail.points.map { it.toLatLng() },
+                    clickable = false,
+                    color = Color(tail.colorArgb),
+                    width = TAIL_STROKE_WIDTH_PX,
+                    zIndex = 0f
+                )
+            }
+
             // Se dispara con cada refresco de Room (nueva lista de markers), nunca con cada
             // movimiento de cámara -- eso lo cubre el listener debounced de abajo, creado una
             // sola vez la primera vez que este efecto corre.
+            MapEffect(Unit) { googleMap -> googleController.googleMap = googleMap }
+
             MapEffect(markers) { googleMap ->
                 val manager = clusteringState.manager ?: run {
                     val newManager = ClusterManager<AssetClusterItem>(context, googleMap)

@@ -29,6 +29,15 @@ data class MapMarkerData(
 )
 
 /**
+ * Cola de la unidad seleccionada, ya lista para dibujar: puntos de más antigua a más reciente
+ * (el último ya es la posición del marcador) y color como ARGB resuelto en MapScreen.
+ */
+data class MapTailData(
+    val points: List<GeoPoint>,
+    val colorArgb: Int
+)
+
+/**
  * Puente imperativo hacia la cámara del motor concreto. Los botones flotantes del mapa
  * (centrar en mi ubicación, ajustar zoom a todas) no son composables, así que necesitan un
  * objeto al que llamar desde un onClick normal en vez de una función @Composable.
@@ -36,6 +45,10 @@ data class MapMarkerData(
 interface MapCameraController {
     fun centerOn(point: GeoPoint, zoomLevel: Float = DEFAULT_ZOOM)
     fun fitAll(points: List<GeoPoint>)
+
+    // Encuadra los puntos dentro del área libre (respeta contentPadding) sin acercarse más que
+    // DEFAULT_ZOOM -- el mismo tope que "Ver en mapa". Con un solo punto equivale a centerOn().
+    fun frame(points: List<GeoPoint>)
 
     // Salto instantáneo, sin animación -- para seguir un marcador que se mueve varias veces por
     // segundo (reproducción de recorrido, ver HistoryScreen): centerOn() anima con
@@ -101,6 +114,9 @@ interface MapEngine {
         // RouteMapEngine.Content.playbackPoint): un default en un miembro @Composable de una
         // interfaz no genera el bridge $default correctamente -- AbstractMethodError en runtime
         // al llamarlo a través del tipo de interfaz. Todo caller pasa este parámetro explícito.
-        draft: GeofenceDraftPreview?
+        draft: GeofenceDraftPreview?,
+        // Cola de la unidad seleccionada; null = nada que dibujar. Sin valor por defecto, mismo
+        // motivo que draft. Siempre por debajo de los marcadores.
+        tail: MapTailData?
     )
 }
