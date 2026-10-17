@@ -73,6 +73,7 @@ class MapViewModel(
     // SoltelematicNavHost -- onNavigateToMap empuja una entrada nueva de Destination.Map), queda acá
     // hasta que la primera carga de assets resuelva esa unidad.
     private var pendingFocusAssetId: Int? = null
+    private var pendingFocusOpenSheet = false
 
     private val _centerOnAsset = MutableSharedFlow<GeoPoint>(extraBufferCapacity = 1)
     val centerOnAsset: SharedFlow<GeoPoint> = _centerOnAsset.asSharedFlow()
@@ -216,12 +217,12 @@ class MapViewModel(
      * MapFocusRequestBus (las dos trampas).
      */
     suspend fun consumeFocusRequests() {
-        mapFocusRequestBus.focusedAssetId.collect { id ->
-            if (id != null) {
+        mapFocusRequestBus.request.collect { request ->
+            if (request != null) {
                 // Se limpia apenas se consume: volver después a la pestaña Mapa (o que esta misma
                 // pantalla reinicie su efecto) no debe volver a centrar sobre esta unidad.
                 mapFocusRequestBus.clear()
-                focusOnAsset(id)
+                focusOnAsset(request.assetId, request.openSheet)
             }
         }
     }
@@ -235,9 +236,22 @@ class MapViewModel(
      * zona, así que sí hace falta mover la cámara explícitamente en vez de confiar en el encuadre
      * automático.
      */
-    private fun focusOnAsset(id: Int) {
-        _uiState.update { it.copy(focusedAssetId = id) }
+    private fun focusOnAsset(id: Int, openSheet: Boolean) {
+        pendingFocusOpenSheet = openSheet
+        revealAssetIfHidden(id)
         val position = _uiState.value.assets.firstOrNull { it.id == id }?.position
+        if (openSheet) {
+            // Desde Unidades: misma selección que tocar el marcador (hoja + cola + encuadre, ver
+            // MapScreen).
+            if (position != null) {
+                pendingFocusAssetId = null
+                onAssetSelected(id)
+            } else {
+                pendingFocusAssetId = id
+            }
+            return
+        }
+        _uiState.update { it.copy(focusedAssetId = id) }
         if (position != null) {
             pendingFocusAssetId = null
             _centerOnAsset.tryEmit(position)
@@ -246,11 +260,30 @@ class MapViewModel(
         }
     }
 
+    /**
+     * Hay una sola instancia de mapa (la pestaña), así que su chip de filtro o su búsqueda pueden
+     * estar activos al llegar un foco: si ocultarían la unidad se vuelve a "Todas" y se limpia la
+     * búsqueda; si no la ocultan, no se tocan. Sin la unidad cargada todavía no hay nada que
+     * evaluar (se reintenta al resolver el foco pendiente).
+     */
+    private fun revealAssetIfHidden(id: Int) {
+        val state = _uiState.value
+        val asset = state.assets.firstOrNull { it.id == id } ?: return
+        if (asset !in state.visibleAssets) {
+            _uiState.update { it.copy(activeFilter = AssetFilter.ALL, searchQuery = "") }
+        }
+    }
+
     private suspend fun resolvePendingFocusIfNeeded(assets: List<Asset>) {
         val id = pendingFocusAssetId ?: return
         val position = assets.firstOrNull { it.id == id }?.position ?: return
         pendingFocusAssetId = null
-        _centerOnAsset.emit(position)
+        revealAssetIfHidden(id)
+        if (pendingFocusOpenSheet) {
+            onAssetSelected(id)
+        } else {
+            _centerOnAsset.emit(position)
+        }
     }
 
     fun onBottomSheetDismissed() {

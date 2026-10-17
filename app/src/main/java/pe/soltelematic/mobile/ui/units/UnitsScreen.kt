@@ -91,6 +91,7 @@ private val SkeletonSpeedWidth = 40.dp
 @Composable
 fun UnitsScreen(
     onOpenAssetDetail: (Int) -> Unit,
+    onOpenOnMap: (Int) -> Unit,
     viewModel: UnitsViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -168,7 +169,20 @@ fun UnitsScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(uiState.visibleAssets, key = { it.id }) { asset ->
-                        UnitRow(asset = asset, imageLoader = imageLoader, onClick = { onOpenAssetDetail(asset.id) })
+                        UnitRow(
+                            asset = asset,
+                            imageLoader = imageLoader,
+                            onClick = {
+                                // Con posición, tocar la unidad lleva al mapa con ella seleccionada;
+                                // sin ella (nunca reportó) un mapa vacío no sirve: abre la ficha.
+                                val position = asset.position
+                                if (position != null && !(position.lat == 0.0 && position.lng == 0.0)) {
+                                    onOpenOnMap(asset.id)
+                                } else {
+                                    onOpenAssetDetail(asset.id)
+                                }
+                            }
+                        )
                     }
                 }
             }

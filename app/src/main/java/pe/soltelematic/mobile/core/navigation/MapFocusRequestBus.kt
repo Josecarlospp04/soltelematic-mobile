@@ -35,14 +35,21 @@ import kotlinx.coroutines.flow.asStateFlow
  * (sin pasar de nuevo por "Ver en mapa") no vuelva a centrar sobre la unidad ya vieja.
  */
 class MapFocusRequestBus {
-    private val _focusedAssetId = MutableStateFlow<Int?>(null)
-    val focusedAssetId: StateFlow<Int?> = _focusedAssetId.asStateFlow()
+    private val _request = MutableStateFlow<FocusRequest?>(null)
+    val request: StateFlow<FocusRequest?> = _request.asStateFlow()
 
-    fun requestFocus(assetId: Int) {
-        _focusedAssetId.value = assetId
+    /**
+     * openSheet = false: solo centrar y resaltar ("Ver en mapa" de la ficha, el usuario ya viene de
+     * ahí). openSheet = true: además abrir la hoja inferior, como si se tocara el marcador (lista
+     * de Unidades).
+     */
+    fun requestFocus(assetId: Int, openSheet: Boolean = false) {
+        _request.value = FocusRequest(assetId, openSheet)
     }
 
     fun clear() {
-        _focusedAssetId.value = null
+        _request.value = null
     }
 }
+
+data class FocusRequest(val assetId: Int, val openSheet: Boolean)

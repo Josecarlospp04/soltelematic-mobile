@@ -5,6 +5,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,12 +36,20 @@ class UnseenEventsPoller(
 
     private val isForeground = MutableStateFlow(true)
 
+    // Idempotente, ver RealtimePoller.start: un solo bucle y un solo observer por singleton.
+    private var pollJob: Job? = null
+    private var lifecycleObserverRegistered = false
+
     fun start(scope: CoroutineScope) {
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) { isForeground.value = true }
-            override fun onStop(owner: LifecycleOwner) { isForeground.value = false }
-        })
-        scope.launch {
+        if (!lifecycleObserverRegistered) {
+            lifecycleObserverRegistered = true
+            ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) { isForeground.value = true }
+                override fun onStop(owner: LifecycleOwner) { isForeground.value = false }
+            })
+        }
+        if (pollJob?.isActive == true) return
+        pollJob = scope.launch {
             isForeground.collectLatest { foreground -> if (foreground) pollLoop() }
         }
     }

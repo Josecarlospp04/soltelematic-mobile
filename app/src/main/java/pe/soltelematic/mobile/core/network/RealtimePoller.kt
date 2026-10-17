@@ -6,6 +6,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -31,14 +32,24 @@ class RealtimePoller(private val assetRepository: AssetRepository) {
     private var time: Long = Instant.now().epochSecond
     private val isForeground = MutableStateFlow(true)
 
+    // Idempotente: start() lo llama cada MapViewModel que nace, pero el poller es un singleton y
+    // debe haber UN solo bucle y UN solo observer. Un Job cancelado (su scope murió, p. ej. logout)
+    // deja de estar activo, así que el siguiente start() sí lo relanza.
+    private var pollJob: Job? = null
+    private var lifecycleObserverRegistered = false
+
     fun start(scope: CoroutineScope) {
-        // DefaultLifecycleObserver, no Lifecycle.currentStateFlow: esa extensión pide una
-        // versión de lifecycle-runtime-ktx más nueva que la que trae el proyecto.
-        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) { isForeground.value = true }
-            override fun onStop(owner: LifecycleOwner) { isForeground.value = false }
-        })
-        scope.launch {
+        if (!lifecycleObserverRegistered) {
+            lifecycleObserverRegistered = true
+            // DefaultLifecycleObserver, no Lifecycle.currentStateFlow: esa extensión pide una
+            // versión de lifecycle-runtime-ktx más nueva que la que trae el proyecto.
+            ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+                override fun onStart(owner: LifecycleOwner) { isForeground.value = true }
+                override fun onStop(owner: LifecycleOwner) { isForeground.value = false }
+            })
+        }
+        if (pollJob?.isActive == true) return
+        pollJob = scope.launch {
             // collectLatest cancela el loop anterior en cuanto cambia el estado: es lo que
             // "pausa" el polling en segundo plano, no un chequeo manual en cada vuelta.
             // Sin distinctUntilChanged: isForeground ya es un StateFlow, confla por sí solo.

@@ -153,6 +153,12 @@ fun SoltelematicNavHost(
                 UnitsScreen(
                     onOpenAssetDetail = { assetId ->
                         navController.navigate(Destination.AssetDetail.createRoute(assetId))
+                    },
+                    // Único camino al mapa: la pestaña (una sola instancia de MapViewModel/GoogleMap
+                    // y un solo sondeo). El bus guarda la petición hasta que la pestaña la consuma.
+                    onOpenOnMap = { assetId ->
+                        mapFocusRequestBus.requestFocus(assetId, openSheet = true)
+                        navigateToTab(Destination.Map)
                     }
                 )
             }
@@ -189,15 +195,16 @@ fun SoltelematicNavHost(
                     assetId = assetId,
                     onBack = { navController.popBackStack() },
                     onOpenHistory = { navController.navigate(Destination.History.createRoute(assetId)) },
-                    // Push simple, NO el patrón popUpTo/singleTop/restoreState de navigateToTab
-                    // (arriba): ese patrón vacía el back stack hasta la start destination, lo que
-                    // dejaría "atrás" sin la ficha. Acá "atrás" sí debe volver a la ficha (ver
-                    // spec del botón "Ver en mapa"), así que Mapa se apila como cualquier otro
-                    // destino hijo -- crea una entrada/instancia de MapViewModel propia para esta
-                    // visita, independiente de la de la pestaña.
+                    // Va a la pestaña Mapa (no apila otra entrada de Mapa: eso duplicaba
+                    // MapViewModel y sondeos). Comportamiento estándar de pestañas: "atrás" desde
+                    // el mapa ya no vuelve a la ficha. popBackStack y no navigateToTab: verificado
+                    // en dispositivo que navigate(popUpTo+restoreState) desde la ficha no cambia
+                    // el back stack (la ficha queda encima); el Mapa de la pestaña ya está debajo.
                     onNavigateToMap = {
                         mapFocusRequestBus.requestFocus(assetId)
-                        navController.navigate(Destination.Map.route)
+                        if (!navController.popBackStack(Destination.Map.route, inclusive = false)) {
+                            navigateToTab(Destination.Map)
+                        }
                     }
                 )
             }
