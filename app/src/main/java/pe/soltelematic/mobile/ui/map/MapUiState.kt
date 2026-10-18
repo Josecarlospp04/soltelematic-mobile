@@ -17,6 +17,13 @@ data class MapUiState(
     // inferior -- el "Ver en mapa" de la ficha (ver MapViewModel.focusOnAsset) usa esto en vez de
     // selectedAssetId, porque el usuario ya viene de la ficha y no hace falta volver a abrirla acá.
     val focusedAssetId: Int? = null,
+    // La cámara sigue a la unidad enfocada (highlightedAssetId) en cada sondeo. Se apaga con un
+    // gesto del usuario sobre el mapa (la selección, la hoja y la cola no cambian) y al quitar el
+    // enfoque; se enciende al enfocar de nuevo (marcador, Unidades, "Ver en mapa").
+    val isFollowing: Boolean = false,
+    // Sube con cada pedido de enfoque, incluso sobre la misma unidad: MapScreen encuadra (cola +
+    // unidad) una vez por cada valor, nunca por sondeo.
+    val focusRequestId: Int = 0,
     val isRefreshing: Boolean = false,
     val unseenEventsCount: Int = 0,
     val geofences: List<Geofence> = emptyList(),
@@ -51,6 +58,9 @@ data class MapUiState(
     // focusedAssetId cuando el foco viene de "Ver en mapa" sin hoja (ver MapScreen.selectedMarkerId).
     val highlightedAssetId: Int?
         get() = selectedAssetId ?: focusedAssetId
+
+    val highlightedAsset: Asset?
+        get() = highlightedAssetId?.let { id -> assets.firstOrNull { it.id == id } }
 
     val visibleGeofences: List<Geofence>
         get() = if (showGeofences) geofences else emptyList()

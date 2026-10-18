@@ -70,7 +70,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -115,20 +114,9 @@ fun MapScreen(
 
     // Foco pedido desde la ficha ("Ver en mapa", ver MapFocusRequestBus). Va en un LaunchedEffect y
     // NO en el init del ViewModel: puede haber dos MapViewModel vivos a la vez y solo la pantalla
-    // visible tiene efecto activo. Declarado ANTES del colector de autoFitCamera a propósito, y con
-    // el colector de centerOnAsset arrancado UNDISPATCHED (ya suscrito antes de consumir): ni el
-    // centrado inmediato ni un encuadre de flota pueden colarse antes de tiempo, ambos son
-    // SharedFlow sin replay.
+    // visible tiene efecto activo. Declarado ANTES del colector de autoFitCamera a propósito: el
+    // encuadre de flota es un SharedFlow sin replay y no debe colarse antes del foco.
     LaunchedEffect(Unit) {
-        launch(start = CoroutineStart.UNDISPATCHED) {
-            viewModel.centerOnAsset.collect { point ->
-                // focusOnAsset ya dejó focusedAssetId en el estado antes de emitir: se encuadra
-                // igual que una selección por marcador (cola + posición), sin hoja.
-                val state = viewModel.uiState.value
-                val asset = state.assets.firstOrNull { it.id == state.highlightedAssetId }
-                cameraController.frame(asset?.framePoints() ?: listOf(point))
-            }
-        }
         viewModel.consumeFocusRequests()
     }
 
@@ -197,18 +185,43 @@ fun MapScreen(
         }
     }
 
-    // Al seleccionar una unidad tocando su marcador: encuadre de cola + posición dentro de la zona
-    // visible (ver MapCameraController.frame). Llave = id, no la posición: los sondeos no deben
-    // volver a mover la cámara mientras el usuario explora con la unidad seleccionada.
-    LaunchedEffect(uiState.selectedAssetId) {
-        if (uiState.selectedAssetId == null) return@LaunchedEffect
-        // Antes de animar: esperar a que la hoja esté asentada y medida, y a que el padding ya
-        // aplicado al mapa (recomposición) refleje esa altura; si no, el primer encuadre usa el
-        // padding viejo. Con tope de espera para no quedar colgado si la hoja no reporta.
-        withTimeoutOrNull(2000) { snapshotFlow { appliedOverlapPx }.first { it > 0 } }
+    // Al enfocar una unidad (marcador, Unidades o "Ver en mapa"): encuadre de cola + posición dentro
+    // de la zona visible (ver MapCameraController.frame). Llave = pedido de enfoque, no la
+    // posición: los sondeos no re-encuadran, solo siguen (efecto de abajo).
+    val focusRequestId = uiState.focusRequestId
+    LaunchedEffect(focusRequestId) {
+        if (focusRequestId == 0) return@LaunchedEffect
+        val sheetOpen = viewModel.uiState.value.selectedAssetId != null
+        // Antes de animar: esperar a que el padding ya aplicado al mapa (recomposición) refleje el
+        // estado de la hoja -- asentada y medida si está abierta, en 0 si no; si no, el encuadre usa
+        // el padding viejo. Con tope de espera para no quedar colgado si la hoja no reporta.
+        withTimeoutOrNull(2000) {
+            snapshotFlow { appliedOverlapPx }.first { if (sheetOpen) it > 0 else it == 0 }
+        }
         withFrameNanos { }
-        val selected = viewModel.uiState.value.selectedAsset ?: return@LaunchedEffect
-        cameraController.frame(selected.framePoints())
+        val state = viewModel.uiState.value
+        // Pedido ya superado (p. ej. al volver a la pantalla, consumeFocusRequests lo reemplazó):
+        // el efecto con la llave nueva ya viene en camino.
+        if (state.focusRequestId != focusRequestId) return@LaunchedEffect
+        val asset = state.highlightedAsset ?: return@LaunchedEffect
+        cameraController.frame(asset.framePoints())
+    }
+
+    // Seguimiento: en cada sondeo que mueve a la unidad enfocada, la cámara la sigue manteniendo el
+    // zoom. No se anima si la posición no cambió ni al cambiar de unidad (eso lo encuadra el efecto
+    // de arriba); tampoco al volver a seguir, cuando solo cambia isFollowing.
+    val highlightedId = uiState.highlightedAssetId
+    val highlightedPosition = uiState.highlightedAsset?.position
+    val isFollowing = uiState.isFollowing
+    val lastHighlighted = remember { LastHighlighted() }
+    LaunchedEffect(highlightedId, highlightedPosition, isFollowing) {
+        val previousId = lastHighlighted.id
+        val previousPosition = lastHighlighted.position
+        lastHighlighted.id = highlightedId
+        lastHighlighted.position = highlightedPosition
+        if (!isFollowing || highlightedId == null || highlightedPosition == null) return@LaunchedEffect
+        if (previousId != highlightedId || previousPosition == highlightedPosition) return@LaunchedEffect
+        cameraController.followTo(highlightedPosition)
     }
 
     // remember(uiState.visibleAssets, solColors): Asset es data class, así que dos listas con el
@@ -248,7 +261,7 @@ fun MapScreen(
     // Cola SOLO de la unidad resaltada (hoja abierta o foco de "Ver en mapa"). Se recalcula con
     // cada sondeo porque sale de uiState.assets.
     val brandColorArgb = MaterialTheme.colorScheme.primary.toArgb()
-    val highlightedAsset = uiState.assets.firstOrNull { it.id == uiState.highlightedAssetId }
+    val highlightedAsset = uiState.highlightedAsset
     val tailData = remember(highlightedAsset, brandColorArgb, isDrawingGeofence) {
         if (isDrawingGeofence || highlightedAsset == null || highlightedAsset.tail.isEmpty()) return@remember null
         val points = highlightedAsset.framePoints()
@@ -293,7 +306,8 @@ fun MapScreen(
                     null -> null
                 }
             },
-            tail = tailData
+            tail = tailData,
+            onCameraGesture = viewModel::onCameraGesture
         )
 
         // El mapa dibuja a pantalla completa (enableEdgeToEdge en MainActivity), pero estos
@@ -350,7 +364,10 @@ fun MapScreen(
                     .padding(SoltelematicSpacing.lg)
             ) {
                 MapFab(
-                    onClick = { cameraController.fitAll(markers.map { it.position }) },
+                    onClick = {
+                        viewModel.onStopFollowing()
+                        cameraController.fitAll(markers.map { it.position })
+                    },
                     icon = Icons.Filled.ZoomOutMap,
                     contentDescription = stringResource(R.string.map_fit_all)
                 )
@@ -358,6 +375,7 @@ fun MapScreen(
                 MapFab(
                     onClick = {
                         if (hasLocationPermission) {
+                            viewModel.onStopFollowing()
                             centerOnMyLocation(context, cameraController)
                         } else {
                             locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -395,7 +413,7 @@ fun MapScreen(
                 isStatsLoading = uiState.isSelectedAssetStatsLoading,
                 address = uiState.selectedAssetAddress,
                 isAddressLoading = uiState.isSelectedAssetAddressLoading,
-                onDismiss = viewModel::onBottomSheetDismissed,
+                onDismiss = viewModel::onBottomSheetClosed,
                 onOpenDetail = { onOpenAssetDetail(asset.id) },
                 onOpenHistory = { onOpenHistory(asset.id) },
                 onSheetTopChanged = { sheetTopPx = it }
@@ -426,6 +444,12 @@ fun MapScreen(
             onDismiss = viewModel::onGeofenceDeletionDismissed
         )
     }
+}
+
+/** Última unidad enfocada y posición vistas por el efecto de seguimiento; no son estado de UI. */
+private class LastHighlighted {
+    var id: Int? = null
+    var position: GeoPoint? = null
 }
 
 /**

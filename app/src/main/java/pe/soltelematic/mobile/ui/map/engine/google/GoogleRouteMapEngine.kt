@@ -218,7 +218,7 @@ class GoogleRouteMapEngine(private val imageLoader: ImageLoader) : RouteMapEngin
             modifier = modifier,
             cameraPositionState = googleController.cameraPositionState,
             properties = MapProperties(mapType = mapType.toGoogleMapType()),
-            uiSettings = MapUiSettings(zoomControlsEnabled = false)
+            uiSettings = MapUiSettings(zoomControlsEnabled = false, mapToolbarEnabled = false)
         ) {
             // Tramo seleccionado aparte, siempre a fidelidad completa (nunca pasa por el
             // presupuesto de puntos ni por simplify): es un solo Polyline, no miles, así que no

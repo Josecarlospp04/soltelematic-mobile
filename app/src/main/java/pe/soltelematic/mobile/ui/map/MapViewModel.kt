@@ -75,9 +75,6 @@ class MapViewModel(
     private var pendingFocusAssetId: Int? = null
     private var pendingFocusOpenSheet = false
 
-    private val _centerOnAsset = MutableSharedFlow<GeoPoint>(extraBufferCapacity = 1)
-    val centerOnAsset: SharedFlow<GeoPoint> = _centerOnAsset.asSharedFlow()
-
     private val _geofenceCreateEvent = MutableSharedFlow<GeofenceCreateEvent>(extraBufferCapacity = 1)
     val geofenceCreateEvent: SharedFlow<GeofenceCreateEvent> = _geofenceCreateEvent.asSharedFlow()
 
@@ -193,12 +190,20 @@ class MapViewModel(
      * loadSelectedAssetStats/loadSelectedAssetAddress), nunca bloquean ni retrasan la apertura.
      */
     fun onAssetSelected(id: Int) {
+        if (_uiState.value.selectedAssetId == id) {
+            // Segundo toque sobre la unidad cuya hoja ya está abierta: no recarga la hoja, solo
+            // vuelve a seguirla y a encuadrarla.
+            _uiState.update { it.copy(isFollowing = true, focusRequestId = it.focusRequestId + 1) }
+            return
+        }
         _uiState.update {
             it.copy(
                 selectedAssetId = id,
                 // Un toque directo sobre un marcador reemplaza cualquier foco pendiente de "Ver en
                 // mapa" -- solo debe quedar resaltada la unidad que el usuario acaba de tocar.
                 focusedAssetId = null,
+                isFollowing = true,
+                focusRequestId = it.focusRequestId + 1,
                 isSelectedAssetStatsLoading = true,
                 selectedAssetStats = emptyList(),
                 isSelectedAssetAddressLoading = true,
@@ -251,12 +256,62 @@ class MapViewModel(
             }
             return
         }
-        _uiState.update { it.copy(focusedAssetId = id) }
         if (position != null) {
             pendingFocusAssetId = null
-            _centerOnAsset.tryEmit(position)
+            focusWithoutSheet(id)
         } else {
             pendingFocusAssetId = id
+        }
+    }
+
+    /**
+     * Enfoque sin hoja: cola + seguimiento de la unidad. Cierra la hoja que hubiera abierta -- la
+     * ficha se abre desde "Ver detalle" con la hoja puesta y al volver (popBackStack) ese estado
+     * seguía vivo en este ViewModel, así que "Ver en mapa" terminaba con la hoja encima.
+     */
+    private fun focusWithoutSheet(id: Int) {
+        statsJob?.cancel()
+        addressJob?.cancel()
+        _uiState.update {
+            it.copy(
+                selectedAssetId = null,
+                focusedAssetId = id,
+                isFollowing = true,
+                focusRequestId = it.focusRequestId + 1,
+                isSelectedAssetStatsLoading = false,
+                selectedAssetStats = emptyList(),
+                isSelectedAssetAddressLoading = false,
+                selectedAssetAddress = null
+            )
+        }
+    }
+
+    /** Deja de seguir sin tocar selección, hoja ni cola. */
+    fun onStopFollowing() {
+        if (_uiState.value.isFollowing) _uiState.update { it.copy(isFollowing = false) }
+    }
+
+    /** Gesto del usuario sobre el mapa (arrastrar, pellizcar, rotar). */
+    fun onCameraGesture() = onStopFollowing()
+
+    /**
+     * Cerrar la hoja (fondo, deslizar o Atrás) conserva la unidad enfocada: queda como tras "Ver en
+     * mapa" (cola + seguimiento, sin hoja). Quitar el enfoque es tocar el mapa vacío
+     * (onBottomSheetDismissed).
+     */
+    fun onBottomSheetClosed() {
+        val id = _uiState.value.selectedAssetId ?: return
+        statsJob?.cancel()
+        addressJob?.cancel()
+        _uiState.update {
+            it.copy(
+                selectedAssetId = null,
+                focusedAssetId = id,
+                isSelectedAssetStatsLoading = false,
+                selectedAssetStats = emptyList(),
+                isSelectedAssetAddressLoading = false,
+                selectedAssetAddress = null
+            )
         }
     }
 
@@ -274,15 +329,15 @@ class MapViewModel(
         }
     }
 
-    private suspend fun resolvePendingFocusIfNeeded(assets: List<Asset>) {
+    private fun resolvePendingFocusIfNeeded(assets: List<Asset>) {
         val id = pendingFocusAssetId ?: return
-        val position = assets.firstOrNull { it.id == id }?.position ?: return
+        if (assets.firstOrNull { it.id == id }?.position == null) return
         pendingFocusAssetId = null
         revealAssetIfHidden(id)
         if (pendingFocusOpenSheet) {
             onAssetSelected(id)
         } else {
-            _centerOnAsset.emit(position)
+            focusWithoutSheet(id)
         }
     }
 
@@ -295,6 +350,7 @@ class MapViewModel(
                 // Mismo botón que "cerrar hoja" para el caso sin hoja: tocar el mapa vacío tras un
                 // foco de "Ver en mapa" también debe apagar su resaltado (ver onMapClick).
                 focusedAssetId = null,
+                isFollowing = false,
                 isSelectedAssetStatsLoading = false,
                 selectedAssetStats = emptyList(),
                 isSelectedAssetAddressLoading = false,

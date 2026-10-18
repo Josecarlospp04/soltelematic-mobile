@@ -57,6 +57,12 @@ interface MapCameraController {
     // zoom/tilt/bearing actuales -- no fuerza el zoom que sí trae centerOn().
     fun moveInstantly(point: GeoPoint)
 
+    // Seguimiento de una unidad que se mueve: anima (corto y suave) hasta centrar el punto dentro
+    // del área libre (respeta contentPadding, con o sin hoja) conservando zoom/tilt/bearing -- a
+    // diferencia de centerOn(), que fuerza un zoom. El encuadre de cola + unidad es frame(), solo
+    // al enfocar; esto se llama en cada sondeo cuya posición cambió.
+    fun followTo(point: GeoPoint)
+
     companion object {
         const val DEFAULT_ZOOM = 16f
     }
@@ -117,6 +123,10 @@ interface MapEngine {
         draft: GeofenceDraftPreview?,
         // Cola de la unidad seleccionada; null = nada que dibujar. Sin valor por defecto, mismo
         // motivo que draft. Siempre por debajo de los marcadores.
-        tail: MapTailData?
+        tail: MapTailData?,
+        // El usuario empezó a mover la cámara con un gesto (arrastrar, pellizcar, rotar, inclinar).
+        // Las animaciones propias de la app (frame/centerOn/followTo/fitAll) NO lo disparan. Una
+        // vez por gesto, no por frame. Sin valor por defecto, mismo motivo que draft.
+        onCameraGesture: () -> Unit
     )
 }

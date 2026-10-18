@@ -1,6 +1,7 @@
 package pe.soltelematic.mobile.ui.map.engine.google
 
 import android.graphics.Color as AndroidColor
+import android.os.SystemClock
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -8,12 +9,18 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -26,6 +33,7 @@ import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PatternItem
 import com.google.maps.android.clustering.ClusterManager
+import com.google.maps.android.compose.CameraMoveStartedReason
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.GoogleMapComposable
@@ -37,6 +45,8 @@ import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlin.math.cos
 import kotlin.math.hypot
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.Geofence
 import pe.soltelematic.mobile.domain.model.GeofenceShape
@@ -121,7 +131,8 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         contentPadding: PaddingValues,
         mapType: MapType,
         draft: GeofenceDraftPreview?,
-        tail: MapTailData?
+        tail: MapTailData?,
+        onCameraGesture: () -> Unit
     ) {
         // Casteo seguro: el único MapCameraController que existe hoy es el que devuelve
         // rememberCameraController() de esta misma clase.
@@ -153,6 +164,24 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
             bottom = contentPadding.calculateBottomPadding() + systemNavigationBarHeight + GOOGLE_ATTRIBUTION_RESERVED_HEIGHT
         )
 
+        // maps-compose ya registra el OnCameraMoveStartedListener del SDK y expone su motivo en
+        // cameraMoveStartedReason: GESTURE solo para el usuario, las animaciones propias llegan como
+        // DEVELOPER_ANIMATION. Un gesto que interrumpe una animación cambia el motivo con isMoving
+        // ya en true, por eso se observa la combinación y no isMoving solo.
+        //
+        // Además exige un dedo sobre el mapa (TouchTracker): cambiar el padding al abrir/cerrar la
+        // hoja mueve la cámara sin que nadie toque, y eso no puede contar como gesto aunque el SDK
+        // lo etiquete así.
+        val currentOnCameraGesture by rememberUpdatedState(onCameraGesture)
+        val touchTracker = remember { TouchTracker() }
+        LaunchedEffect(googleController) {
+            val state = googleController.cameraPositionState
+            snapshotFlow { state.isMoving && state.cameraMoveStartedReason == CameraMoveStartedReason.GESTURE }
+                .distinctUntilChanged()
+                .filter { it && touchTracker.isTouchingRecently() }
+                .collect { currentOnCameraGesture() }
+        }
+
         SideEffect {
             with(density) {
                 googleController.paddingPx = intArrayOf(
@@ -165,12 +194,26 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
         }
 
         GoogleMap(
-            modifier = modifier,
+            modifier = modifier.pointerInput(touchTracker) {
+                // Pasada Initial y sin consumir: solo observa, el mapa recibe los toques intactos.
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        touchTracker.onPointerEvent(event.changes.any { it.pressed })
+                    }
+                }
+            },
             cameraPositionState = googleController.cameraPositionState,
             // myLocationEnabled solo debe llegar en true cuando quien llama ya confirmó el
             // permiso ACCESS_FINE_LOCATION; si no, el SDK de Google Maps lanza SecurityException.
             properties = MapProperties(isMyLocationEnabled = myLocationEnabled, mapType = mapType.toGoogleMapType()),
-            uiSettings = MapUiSettings(myLocationButtonEnabled = false, zoomControlsEnabled = false),
+            // mapToolbarEnabled = false: sin los botones "cómo llegar" / "abrir en Google Maps" que
+            // el SDK muestra al tocar un marcador.
+            uiSettings = MapUiSettings(
+                myLocationButtonEnabled = false,
+                zoomControlsEnabled = false,
+                mapToolbarEnabled = false
+            ),
             // No es solo estético: el SDK usa este padding también para calcular el bounding box
             // visible en newLatLngBounds (ver GoogleMapCameraController.fitAll), así que un
             // encuadre automático ya no deja marcadores debajo de la barra de búsqueda/chips/FABs.
@@ -210,7 +253,25 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
                     val renderer = AssetClusterRenderer(context, googleMap, newManager, iconCache)
                     newManager.renderer = renderer
                     clusteringState.renderer = renderer
-                    googleMap.setOnMarkerClickListener(newManager)
+                    // El anillo no está en ninguna colección del manager y MarkerOptions de este SDK no
+                    // permite marcarlo no clicable: sin este filtro su toque caería al comportamiento
+                    // por defecto de Google (centrar la cámara, info window). Se consume y, como tapa
+                    // la píldora de su unidad, equivale a tocar esa unidad (vuelve a enfocarla).
+                    googleMap.setOnMarkerClickListener { marker ->
+                        if (marker == clusteringState.selectionRing) {
+                            clusteringState.selectedId?.let(onMarkerClick)
+                            true
+                        } else {
+                            newManager.onMarkerClick(marker)
+                        }
+                    }
+                    // El anillo comparte posición con el marcador que el renderer acaba de colocar,
+                    // no solo con el dato: nunca se separan aunque el renderer lo ubique distinto.
+                    renderer.onItemMarkerPlaced = { item, marker ->
+                        if (item.markerData.id == clusteringState.selectedId) {
+                            clusteringState.selectionRing?.position = marker.position
+                        }
+                    }
                     // Opción A del Bloque 7: coalesce varios onCameraIdle seguidos (zoom in/out
                     // en ráfaga) en una sola reclusterización.
                     googleMap.setOnCameraIdleListener(
@@ -236,9 +297,25 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
                 // Se salta las claves ya cacheadas (ver MarkerIconCache), así que en un refresco
                 // con las mismas unidades esto no vuelve a pedir red.
                 iconCache.preload(markers, pillSurfaceArgb, pillInkArgb)
+                val items = markers.map { AssetClusterItem(it) }
                 manager.clearItems()
-                manager.addItems(markers.map { AssetClusterItem(it) })
+                manager.addItems(items)
                 manager.cluster()
+
+                // cluster() es asíncrono (ClusterTask -> RenderTask -> MarkerModifier) mientras que
+                // el anillo se coloca en el acto: sin esto el anillo llegaba primero y el marcador
+                // después -- o tarde, si el reagrupado se pisaba con otro. Los marcadores de unidad
+                // que ya están en pantalla se mueven aquí mismo, a la misma posición que el anillo;
+                // el reagrupado solo decide agrupar/desagrupar. Las unidades dentro de un cluster no
+                // tienen marcador propio (getMarker == null) y se saltan. Solo se toca el SDK
+                // cuando la posición cambió realmente.
+                val renderer = clusteringState.renderer
+                if (renderer != null) {
+                    items.forEach { item ->
+                        val marker = renderer.getMarker(item) ?: return@forEach
+                        if (marker.position != item.position) marker.position = item.position
+                    }
+                }
             }
 
             // Estado "seleccionado": un Marker de anillo superpuesto en vez de una variante de
@@ -247,6 +324,7 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
             MapEffect(selectedMarkerId, markers) { googleMap ->
                 clusteringState.selectionRing?.remove()
                 clusteringState.selectionRing = null
+                clusteringState.selectedId = selectedMarkerId
                 val selected = selectedMarkerId?.let { id -> markers.firstOrNull { it.id == id } }
                 if (selected != null) {
                     clusteringState.selectionRing = googleMap.addMarker(
@@ -263,11 +341,31 @@ class GoogleMapEngine(private val iconCache: MarkerIconCache) : MapEngine {
     }
 }
 
+/**
+ * Si hay (o acaba de haber) un dedo sobre el mapa. La holgura cubre que el SDK avise del inicio del
+ * movimiento un instante después de que el evento táctil ya pasó por Compose.
+ */
+private class TouchTracker {
+    private var pressed = false
+    private var lastReleaseMs = 0L
+
+    fun onPointerEvent(anyPressed: Boolean) {
+        if (pressed && !anyPressed) lastReleaseMs = SystemClock.uptimeMillis()
+        pressed = anyPressed
+    }
+
+    fun isTouchingRecently(): Boolean =
+        pressed || SystemClock.uptimeMillis() - lastReleaseMs <= TOUCH_GRACE_MS
+}
+
+private const val TOUCH_GRACE_MS = 300L
+
 /** Sobrevive a recomposiciones (remember), no a cambios de configuración: no hace falta más. */
 private class ClusteringState {
     var manager: ClusterManager<AssetClusterItem>? = null
     var renderer: AssetClusterRenderer? = null
     var selectionRing: Marker? = null
+    var selectedId: Int? = null
 }
 
 /**

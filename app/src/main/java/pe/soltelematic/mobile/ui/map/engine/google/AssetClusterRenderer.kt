@@ -24,6 +24,15 @@ class AssetClusterRenderer(
     var pillSurfaceArgb: Int = Color.WHITE
     var pillInkArgb: Int = Color.BLACK
 
+    // Aviso de que el marcador de una unidad quedó colocado (nuevo o actualizado), para que el anillo
+    // de selección tome su posición exacta. Ver GoogleMapEngine.
+    var onItemMarkerPlaced: ((AssetClusterItem, Marker) -> Unit)? = null
+
+    override fun onClusterItemRendered(item: AssetClusterItem, marker: Marker) {
+        super.onClusterItemRendered(item, marker)
+        onItemMarkerPlaced?.invoke(item, marker)
+    }
+
     override fun onBeforeClusterItemRendered(item: AssetClusterItem, markerOptions: MarkerOptions) {
         super.onBeforeClusterItemRendered(item, markerOptions)
         applyIcon(item, markerOptions)

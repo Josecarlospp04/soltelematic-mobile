@@ -22,6 +22,10 @@ private const val FIT_ALL_PADDING_PX = 120
 // Fracción del área visible que ocupa la cola al encuadrar: el resto es margen.
 private const val FIT_FRACTION = 0.8
 
+// Los sondeos llegan cada ~7 s: una animación corta se nota como deslizamiento y termina mucho
+// antes del siguiente.
+private const val FOLLOW_ANIMATION_MS = 600
+
 /**
  * cameraPositionState queda accesible (no privado) porque GoogleMapEngine.Content necesita
  * pasárselo al composable GoogleMap: es el mismo objeto, no una copia.
@@ -45,6 +49,20 @@ class GoogleMapCameraController(
     override fun moveInstantly(point: GeoPoint) {
         val current = cameraPositionState.position
         cameraPositionState.position = CameraPosition(LatLng(point.lat, point.lng), current.zoom, current.tilt, current.bearing)
+    }
+
+    // newLatLng conserva zoom/tilt/bearing y centra en el área con padding. El padding se vuelve a
+    // fijar antes de animar (mismo motivo que frame()): la hoja pudo abrirse o cerrarse sin que la
+    // recomposición lo haya aplicado todavía. Sin mapa creado no hay nada que seguir.
+    override fun followTo(point: GeoPoint) {
+        val map = googleMap ?: return
+        scope.launch {
+            paddingPx?.let { (l, t, r, bt) -> map.setPadding(l, t, r, bt) }
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLng(LatLng(point.lat, point.lng)),
+                FOLLOW_ANIMATION_MS
+            )
+        }
     }
 
     // Lo asigna GoogleMapEngine.Content (MapEffect) al crearse el mapa; null antes de eso.
