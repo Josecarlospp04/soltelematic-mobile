@@ -330,6 +330,27 @@
     <string name="manage_alerts_toggle_error">No se pudo cambiar el estado de la alerta. Intenta de nuevo.</string>
     <string name="manage_alerts_delete_error">No se pudo eliminar la alerta. Intenta de nuevo.</string>
     <string name="manage_alerts_refresh_error">No se pudo actualizar la lista de alertas.</string>
+    <string name="manage_alerts_add_content_description">Nueva alerta</string>
+    <string name="manage_alerts_form_unavailable">No se pudo abrir el formulario de alertas.</string>
+
+    <!-- Gestión de alertas (etapa B1: crear) -->
+    <string name="create_alert_title">Nueva alerta</string>
+    <string name="create_alert_save">Guardar</string>
+    <string name="create_alert_name_label">Nombre</string>
+    <string name="create_alert_type_label">Tipo de alerta</string>
+    <string name="create_alert_required">Este campo es obligatorio</string>
+    <string name="create_alert_color_invalid">Usa el formato #RRGGBB</string>
+    <string name="create_alert_generic_error">No se pudo guardar la alerta. Intenta de nuevo.</string>
+    <string name="create_alert_devices_title">Unidades</string>
+    <string name="create_alert_devices_search">Buscar unidad</string>
+    <string name="create_alert_devices_select_all">Seleccionar todas</string>
+    <string name="create_alert_devices_clear_all">Quitar todas</string>
+    <string name="create_alert_devices_empty">Sin unidades para esta búsqueda</string>
+    <string name="create_alert_notifications_title">Notificaciones</string>
+    <plurals name="create_alert_devices_selected">
+        <item quantity="one">%d unidad seleccionada</item>
+        <item quantity="other">%d unidades seleccionadas</item>
+    </plurals>
     <plurals name="manage_alerts_units_count">
         <item quantity="one">%d unidad</item>
         <item quantity="other">%d unidades</item>

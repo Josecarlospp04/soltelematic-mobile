@@ -92,6 +92,18 @@ class ManageAlertsViewModel(
         }
     }
 
+    fun onAddClicked() {
+        if (_uiState.value.isOpeningForm) return
+        _uiState.update { it.copy(isOpeningForm = true) }
+        viewModelScope.launch {
+            when (val result = alertsRepository.getAlertForm()) {
+                is ApiResult.Success -> _events.emit(ManageAlertsEvent.OpenCreateForm)
+                is ApiResult.Error -> _events.emit(ManageAlertsEvent.FormUnavailable(result.error.serverMessage()))
+            }
+            _uiState.update { it.copy(isOpeningForm = false) }
+        }
+    }
+
     fun onDeleteRequested(alert: AlertRule) {
         _uiState.update { it.copy(pendingDelete = alert) }
     }

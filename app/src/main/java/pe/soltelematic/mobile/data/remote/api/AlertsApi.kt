@@ -4,6 +4,7 @@ import pe.soltelematic.mobile.data.remote.dto.AlertActiveRequestDto
 import pe.soltelematic.mobile.data.remote.dto.AlertFormResponseDto
 import pe.soltelematic.mobile.data.remote.dto.AlertStatusResponseDto
 import pe.soltelematic.mobile.data.remote.dto.AlertsListResponseDto
+import kotlinx.serialization.json.JsonObject
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -17,6 +18,10 @@ interface AlertsApi {
 
     @GET("alerts/form")
     suspend fun getAlertForm(): AlertFormResponseDto
+
+    // Cuerpo JSON armado a mano (ver AlertFormMapper.toRequestBody): sus claves dependen del tipo.
+    @POST("alerts")
+    suspend fun createAlert(@Body body: JsonObject): AlertStatusResponseDto
 
     @POST("alerts/active")
     suspend fun setActive(@Body request: AlertActiveRequestDto): AlertStatusResponseDto

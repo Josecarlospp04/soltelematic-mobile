@@ -1,6 +1,7 @@
 package pe.soltelematic.mobile.data.remote.dto
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -15,16 +16,24 @@ data class AlertsListResponseDto(
     val alerts: List<JsonObject> = emptyList()
 )
 
-/** GET alerts/form: de momento solo se leen los títulos de types (attributes se ignora). */
+/**
+ * GET alerts/form. Todo lo que no sea un título simple llega como JsonElement y se interpreta en
+ * AlertFormMapper: los ids de options son número O texto, los campos nulos se omiten, y una forma
+ * inesperada en un solo tipo no debe tumbar la lectura de todo el formulario (ni los títulos que
+ * usa la lista de alertas).
+ */
 @Serializable
 data class AlertFormResponseDto(
-    val types: List<AlertFormTypeDto> = emptyList()
+    val devices: JsonElement? = null,
+    val types: List<AlertFormTypeDto> = emptyList(),
+    val notifications: JsonElement? = null
 )
 
 @Serializable
 data class AlertFormTypeDto(
     val type: String? = null,
-    val title: String? = null
+    val title: String? = null,
+    val attributes: JsonElement? = null
 )
 
 /** Body de POST alerts/active: id es lista aunque sea una sola alerta. */

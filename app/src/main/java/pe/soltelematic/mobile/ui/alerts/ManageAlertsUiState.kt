@@ -17,13 +17,19 @@ data class ManageAlertsUiState(
     val togglingIds: Set<Int> = emptySet(),
     // Alerta con el diálogo de confirmación de borrado abierto / con el DELETE en curso.
     val pendingDelete: AlertRule? = null,
-    val isDeleting: Boolean = false
+    val isDeleting: Boolean = false,
+    // GET alerts/form en vuelo tras tocar "+": se pide antes de abrir el formulario para poder
+    // mostrar el error del servidor (p. ej. usuario sin unidades) sin navegar.
+    val isOpeningForm: Boolean = false
 ) {
     fun titleOf(alert: AlertRule): String = typeTitles[alert.type] ?: alert.type
 }
 
 /** Para mostrar una sola vez (Snackbar), mismo patrón que GeofenceCreateEvent. */
 sealed class ManageAlertsEvent {
+    data object OpenCreateForm : ManageAlertsEvent()
+    // text = mensaje del servidor; null = usar el genérico.
+    data class FormUnavailable(val text: String?) : ManageAlertsEvent()
     data object RefreshFailed : ManageAlertsEvent()
     data object ToggleFailed : ManageAlertsEvent()
     data object DeleteFailed : ManageAlertsEvent()

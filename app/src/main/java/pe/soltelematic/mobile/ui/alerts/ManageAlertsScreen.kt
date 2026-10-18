@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material3.AlertDialog
@@ -25,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +66,7 @@ import pe.soltelematic.mobile.ui.theme.SoltelematicShapes
 import pe.soltelematic.mobile.ui.theme.SoltelematicSpacing
 
 private val EmptyStateIconSize = 40.dp
+private val FabClearance = 88.dp
 
 /**
  * Etapa A de la gestión de alertas: lista de las alertas configuradas con Switch de activa y menú
@@ -75,6 +78,10 @@ private val EmptyStateIconSize = 40.dp
 @Composable
 fun ManageAlertsScreen(
     onBack: () -> Unit,
+    onOpenCreateForm: () -> Unit,
+    // true cuando una alerta se acaba de crear en otra pantalla: se refresca la lista una vez.
+    refreshRequested: Boolean,
+    onRefreshHandled: () -> Unit,
     viewModel: ManageAlertsViewModel = koinViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -83,9 +90,22 @@ fun ManageAlertsScreen(
     val toggleError = stringResource(R.string.manage_alerts_toggle_error)
     val deleteError = stringResource(R.string.manage_alerts_delete_error)
     val refreshError = stringResource(R.string.manage_alerts_refresh_error)
+    val formUnavailable = stringResource(R.string.manage_alerts_form_unavailable)
+
+    LaunchedEffect(refreshRequested) {
+        if (refreshRequested) {
+            viewModel.onRefresh()
+            onRefreshHandled()
+        }
+    }
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             val message = when (event) {
+                ManageAlertsEvent.OpenCreateForm -> {
+                    onOpenCreateForm()
+                    return@collect
+                }
+                is ManageAlertsEvent.FormUnavailable -> event.text ?: formUnavailable
                 ManageAlertsEvent.ToggleFailed -> toggleError
                 ManageAlertsEvent.DeleteFailed -> deleteError
                 ManageAlertsEvent.RefreshFailed -> refreshError
@@ -122,7 +142,24 @@ fun ManageAlertsScreen(
                 )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { if (!uiState.isOpeningForm) viewModel.onAddClicked() },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                if (uiState.isOpeningForm) {
+                    CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.manage_alerts_add_content_description))
+                }
+            }
+        }
     ) { innerPadding ->
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
@@ -140,9 +177,12 @@ fun ManageAlertsScreen(
                 }
                 uiState.alerts.isEmpty() -> ScrollableCenter { EmptyState() }
                 else -> LazyColumn(
+                    // Abajo, espacio extra para que el FAB no tape el último switch.
                     contentPadding = PaddingValues(
-                        horizontal = SoltelematicSpacing.lg,
-                        vertical = SoltelematicSpacing.sm
+                        start = SoltelematicSpacing.lg,
+                        end = SoltelematicSpacing.lg,
+                        top = SoltelematicSpacing.sm,
+                        bottom = FabClearance
                     ),
                     verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
                     modifier = Modifier.fillMaxSize()

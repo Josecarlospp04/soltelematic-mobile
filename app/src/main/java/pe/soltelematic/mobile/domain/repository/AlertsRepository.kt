@@ -1,6 +1,8 @@
 package pe.soltelematic.mobile.domain.repository
 
 import pe.soltelematic.mobile.core.result.ApiResult
+import pe.soltelematic.mobile.domain.model.AlertCreateRequest
+import pe.soltelematic.mobile.domain.model.AlertFormData
 import pe.soltelematic.mobile.domain.model.AlertRule
 
 /** Gestión de alertas (parche 10 del servidor). Solo red, sin Room. */
@@ -13,6 +15,18 @@ interface AlertsRepository {
      * no tiene unidades): quien llama usa el código del tipo como título.
      */
     suspend fun getTypeTitles(): ApiResult<Map<String, String>>
+
+    /** GET alerts/form ya filtrado a lo que la app sabe pintar (ver AlertFormMapper). */
+    suspend fun getAlertForm(): ApiResult<AlertFormData>
+
+    /**
+     * Entrega una sola vez el formulario que getAlertForm acaba de traer: "Gestionar alertas" lo
+     * pide antes de abrir el formulario (para mostrar el error del servidor sin navegar) y el
+     * formulario lo reutiliza en vez de repetir la llamada. null si no hay o ya se tomó.
+     */
+    fun takeCachedForm(): AlertFormData?
+
+    suspend fun createAlert(request: AlertCreateRequest): ApiResult<Unit>
 
     suspend fun setActive(id: Int, active: Boolean): ApiResult<Unit>
 

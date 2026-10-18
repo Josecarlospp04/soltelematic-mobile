@@ -23,6 +23,7 @@ import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.core.network.UnseenEventsPoller
 import pe.soltelematic.mobile.domain.repository.AuthRepository
 import pe.soltelematic.mobile.ui.account.AccountScreen
+import pe.soltelematic.mobile.ui.alerts.CreateAlertScreen
 import pe.soltelematic.mobile.ui.alerts.ManageAlertsScreen
 import pe.soltelematic.mobile.ui.assetdetail.AssetDetailScreen
 import pe.soltelematic.mobile.ui.events.EventsScreen
@@ -47,6 +48,9 @@ import java.time.LocalDate
  * Map vuelva a sumar ese mismo inset de abajo por su cuenta (ver windowInsetsPadding en
  * MapScreen.kt) -- sin esto, la fila de FABs quedaría con doble margen bajo la barra nueva.
  */
+// Clave del savedStateHandle de "Gestionar alertas" con la que CreateAlert pide refrescar la lista.
+private const val ALERTS_CHANGED_KEY = "alerts_changed"
+
 @Composable
 fun SoltelematicNavHost(
     navController: NavHostController = rememberNavController(),
@@ -175,8 +179,25 @@ fun SoltelematicNavHost(
                     onOpenManageAlerts = { navController.navigate(Destination.ManageAlerts.route) }
                 )
             }
-            composable(Destination.ManageAlerts.route) {
-                ManageAlertsScreen(onBack = { navController.popBackStack() })
+            composable(Destination.ManageAlerts.route) { backStackEntry ->
+                // CreateAlert avisa por el savedStateHandle de esta entrada, que sigue viva debajo.
+                val handle = backStackEntry.savedStateHandle
+                val alertsChanged by handle.getStateFlow(ALERTS_CHANGED_KEY, false).collectAsState()
+                ManageAlertsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenCreateForm = { navController.navigate(Destination.CreateAlert.route) },
+                    refreshRequested = alertsChanged,
+                    onRefreshHandled = { handle[ALERTS_CHANGED_KEY] = false }
+                )
+            }
+            composable(Destination.CreateAlert.route) {
+                CreateAlertScreen(
+                    onBack = { navController.popBackStack() },
+                    onCreated = {
+                        navController.previousBackStackEntry?.savedStateHandle?.set(ALERTS_CHANGED_KEY, true)
+                        navController.popBackStack()
+                    }
+                )
             }
             composable(Destination.Reports.route) {
                 ReportsScreen()

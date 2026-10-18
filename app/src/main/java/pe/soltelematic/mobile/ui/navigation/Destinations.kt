@@ -23,6 +23,7 @@ sealed class Destination(val route: String) {
     // Pantalla hija de Alertas (se abre con el botón de ajustes de EventsScreen), no una pestaña: no
     // está en AppBottomBarRoutes, así que no muestra la barra inferior.
     data object ManageAlerts : Destination("alerts/manage")
+    data object CreateAlert : Destination("alerts/create")
     data object AssetDetail : Destination("asset/{$ASSET_ID_ARG}") {
         const val ARG_ID = ASSET_ID_ARG
         fun createRoute(assetId: Int) = "asset/$assetId"
