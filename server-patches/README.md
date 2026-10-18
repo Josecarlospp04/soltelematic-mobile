@@ -1,8 +1,8 @@
 # Parches al servidor GPSWOX — SOLTELEMATIC Mobile
 
-Diez parches obligatorios. Sin ellos la app no funciona correctamente.
+Once parches obligatorios. Sin ellos la app no funciona correctamente.
 
-**Hay que reaplicarlos después de cada actualización de la plataforma GPSWOX**, porque se sobrescriben. Al desplegar la app para un cliente nuevo (otro servidor), aplicar los diez antes de nada.
+**Hay que reaplicarlos después de cada actualización de la plataforma GPSWOX**, porque se sobrescriben. Al desplegar la app para un cliente nuevo (otro servidor), aplicar los once antes de nada.
 
 Los archivos de esta carpeta son copias **literales y probadas** de un servidor en producción, no reconstrucciones.
 
@@ -22,6 +22,7 @@ Los archivos de esta carpeta son copias **literales y probadas** de un servidor 
 - [ ] Verificar login desde la app antes de entregar
 - [ ] Parche 9 — `devices/map` sin filtro de visibilidad
 - [ ] Parche 10 — gestión de alertas (`alerts`)
+- [ ] Parche 11 — `logout` revoca el token en el servidor
 
 ---
 
@@ -252,6 +253,32 @@ php artisan route:clear
 ⚠️ **`active`** no está en el helper: replica la lógica del controlador web (`Alert::enabled()` + `$user->can('active', $alert)` por alerta, y `update(['active' => 0|1])`). Su `afterAuth` pide permiso `view`, no `store`.
 ⚠️ **No se filtra nada del lado servidor** (ni el canal `command` de `notifications` ni los tipos): la app decide qué mostrar.
 ⚠️ Errores de validación y de permisos: los resuelve el manejador global de excepciones, igual que en `POST geofences` (el controlador no captura nada).
+
+---
+
+## 11 · `logout` revoca el token en el servidor
+
+**Síntoma sin el parche:** `POST clientlite/logout` existía pero solo devolvía un `201` vacío (`routes/app.php`). Cerrar sesión en la app solo borraba el token local: el access token y el refresh token seguían siendo válidos en el servidor hasta caducar (`expires_in` ≈ 15 días), así que quien los hubiera copiado (logs, copia de seguridad, dispositivo perdido) podía seguir usándolos.
+
+**Archivo:** `routes/app.php` · **Ruta:** `POST logout`, dentro del grupo `auth:api` + `active_subscription`. Se sustituye **solo** el cuerpo de esa ruta; no se toca nada más del archivo.
+
+**Qué hace ahora:** marca como revocados los refresh tokens del access token actual (`oauth_refresh_tokens.revoked = true`) y revoca el propio access token (`$token->revoke()`). Sigue respondiendo `201` con `[]`.
+
+**Respaldo y despliegue:**
+
+```bash
+cd /var/www/soltelematic
+cp routes/app.php{,.pre-p11.bak}
+cp <carpeta-del-parche>/app.php routes/app.php
+php -l routes/app.php
+php artisan route:clear
+diff routes/app.php.pre-p11.bak routes/app.php   # debe mostrar solo el bloque de logout
+```
+
+**Verificación:** con un token válido, `POST .../clientlite/logout` → `201`; repetir cualquier petición autenticada con ese mismo token → `401`, y `POST .../refresh` con su refresh token → error.
+
+⚠️ La app llama a este endpoint con un timeout de 5 s y **ignora cualquier fallo** (sin red, `401` por suscripción vencida…): el cierre local nunca depende del servidor. Un `401` en esta llamada no dispara el refresh automático (`TokenAuthenticator` la excluye).
+⚠️ `active_subscription` también protege esta ruta: con la suscripción vencida el servidor responde sin revocar, y el token sigue vivo hasta caducar.
 
 ---
 

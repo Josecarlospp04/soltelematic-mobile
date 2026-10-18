@@ -14,8 +14,16 @@ Route::group(['middleware' => [], 'namespace' => 'Api\ClientLite', 'prefix' => '
 
     Route::group(['middleware' => ['auth:api', 'active_subscription']], function () {
 
+        // PARCHE SOLTELEMATIC MOBILE 11 -- logout revoca el access token actual y sus refresh tokens.
         Route::post('logout', [
-            'uses' => function () {
+            'uses' => function (\Illuminate\Http\Request $request) {
+                $token = $request->user() ? $request->user()->token() : null;
+                if ($token) {
+                    \Illuminate\Support\Facades\DB::table('oauth_refresh_tokens')
+                        ->where('access_token_id', $token->id)
+                        ->update(['revoked' => true]);
+                    $token->revoke();
+                }
                 return \Illuminate\Support\Facades\Response::json([], 201);
             }
         ]);
