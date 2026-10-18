@@ -1,6 +1,7 @@
 package pe.soltelematic.mobile.data.mapper
 
 import pe.soltelematic.mobile.core.network.IconUrlResolver
+import pe.soltelematic.mobile.core.time.resolveLastSeenAt
 import pe.soltelematic.mobile.data.local.entity.AssetEntity
 import pe.soltelematic.mobile.data.local.entity.TailPoint
 import pe.soltelematic.mobile.data.remote.dto.AssetCoordinatesDto
@@ -11,7 +12,6 @@ import pe.soltelematic.mobile.domain.model.AssetStatus
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.Ignition
-import java.time.Instant
 
 fun AssetDto.toEntity(iconUrlResolver: IconUrlResolver): AssetEntity = AssetEntity(
     id = id,
@@ -32,7 +32,8 @@ fun AssetDto.toEntity(iconUrlResolver: IconUrlResolver): AssetEntity = AssetEnti
     iconCourse = icon?.course,
     tail = tail?.coordinates.orEmpty().mapNotNull { it.toTailPoint() },
     tailColor = tail?.color,
-    lastSeenAt = time?.timestamp?.let(Instant::ofEpochSecond),
+    // formatted manda, timestamp solo de respaldo: ver resolveLastSeenAt.
+    lastSeenAt = resolveLastSeenAt(time?.formatted, time?.timestamp),
     lastSeenFormatted = time?.formatted
 )
 

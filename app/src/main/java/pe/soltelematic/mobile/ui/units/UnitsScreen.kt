@@ -47,8 +47,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import coil.compose.AsyncImage
-import java.time.Duration
-import java.time.Instant
 import kotlin.math.roundToInt
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -61,6 +59,7 @@ import pe.soltelematic.mobile.domain.model.AssetStatus
 import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.ui.components.AssetFilterChipsRow
 import pe.soltelematic.mobile.ui.components.AssetSearchBar
+import pe.soltelematic.mobile.ui.map.relativeLastSeenText
 import pe.soltelematic.mobile.ui.theme.LocalSoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicColors
 import pe.soltelematic.mobile.ui.theme.SoltelematicMetricTypography
@@ -341,19 +340,6 @@ private fun AssetStatus.label(): String = when (type) {
     AssetStatusType.ENGINE -> stringResource(R.string.asset_status_engine)
     AssetStatusType.BLOCKED -> stringResource(R.string.asset_status_blocked)
     AssetStatusType.UNKNOWN -> title ?: stringResource(R.string.asset_status_unknown)
-}
-
-// Mismo texto que relativeLastSeenText en ui/map/LastSeenText.kt -- duplicado a propósito
-// (convención del proyecto) en vez de importar entre paquetes de features distintos.
-private fun relativeLastSeenText(lastSeenAt: Instant?, now: Instant = Instant.now()): String {
-    if (lastSeenAt == null) return "sin datos"
-    val elapsed = Duration.between(lastSeenAt, now)
-    return when {
-        elapsed.toMinutes() < 1 -> "hace instantes"
-        elapsed.toHours() < 1 -> "hace ${elapsed.toMinutes()} min"
-        elapsed.toDays() < 1 -> "hace ${elapsed.toHours()} h"
-        else -> "hace ${elapsed.toDays()} d"
-    }
 }
 
 @Composable

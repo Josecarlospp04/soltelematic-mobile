@@ -4,6 +4,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import pe.soltelematic.mobile.core.network.IconUrlResolver
+import pe.soltelematic.mobile.core.time.parseDeviceTime
 import pe.soltelematic.mobile.data.remote.dto.AssetCoordinatesDto
 import pe.soltelematic.mobile.data.remote.dto.AssetDetailDto
 import pe.soltelematic.mobile.data.remote.dto.AssetSensorDto
@@ -16,13 +17,6 @@ import pe.soltelematic.mobile.domain.model.AssetStatusType
 import pe.soltelematic.mobile.domain.model.GeoPoint
 import pe.soltelematic.mobile.domain.model.Ignition
 import pe.soltelematic.mobile.domain.model.UnitStat
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-
-// Mismo patrón que time.formatted en todo el resto de la app: dd-MM-yyyy HH:mm:ss, no ISO 8601.
-private val DEVICE_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")
 
 fun AssetDetailDto.toDomain(iconUrlResolver: IconUrlResolver): AssetDetail = AssetDetail(
     id = id,
@@ -49,20 +43,12 @@ fun AssetDetailDto.toDomain(iconUrlResolver: IconUrlResolver): AssetDetail = Ass
     // backend arma ese timestamp interpretando la hora local del formatted como si fuera UTC.
     // "hace X" y el color verde/ámbar/rojo dependen de este dato, así que se recalcula
     // parseando formatted en vez de confiar en el timestamp del servidor para este endpoint.
-    lastSeenAt = time?.formatted?.toInstantOrNull(),
+    lastSeenAt = parseDeviceTime(time?.formatted),
     lastSeenFormatted = time?.formatted,
     sensors = sensors.map { it.toDomain(iconUrlResolver) },
     services = services.map { it.toGenericFields() },
     driver = driver?.toGenericFields()
 )
-
-// Asume que el dispositivo está en la misma zona horaria que el servidor (Perú) -- ninguna otra
-// parte de la app maneja usuarios en zonas horarias distintas hoy, así que no es una suposición
-// nueva. runCatching por si el servidor cambia el patrón sin avisar: mejor sin "hace X" que un
-// crash de parseo.
-private fun String.toInstantOrNull(): Instant? =
-    runCatching { LocalDateTime.parse(this, DEVICE_TIME_FORMAT).atZone(ZoneId.systemDefault()).toInstant() }
-        .getOrNull()
 
 private fun AssetCoordinatesDto.toGeoPointOrNull(): GeoPoint? {
     val latValue = lat?.toDoubleOrNull() ?: return null
