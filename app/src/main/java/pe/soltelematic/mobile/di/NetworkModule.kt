@@ -3,12 +3,12 @@ package pe.soltelematic.mobile.di
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import pe.soltelematic.mobile.BuildConfig
 import pe.soltelematic.mobile.core.network.ApiCallExecutor
+import pe.soltelematic.mobile.core.network.redactingLoggingInterceptor
 import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.core.network.AuthInterceptor
 import pe.soltelematic.mobile.core.network.IconUrlResolver
@@ -48,9 +48,10 @@ val REFRESH = named("refresh")
 // AuthInterceptor/TokenAuthenticator -- a diferencia de REFRESH, este endpoint necesita sesión.
 val REPORTS = named("reports")
 
-private fun debugLoggingInterceptor() = HttpLoggingInterceptor().apply {
-    level = HttpLoggingInterceptor.Level.BODY
-}
+// Solo se añade con BuildConfig.DEBUG (ver los tres clientes de abajo): en release el interceptor no
+// existe, no es un nivel NONE. En debug redacta Authorization y los tokens/contraseña, ver
+// redactingLoggingInterceptor.
+private fun debugLoggingInterceptor() = redactingLoggingInterceptor()
 
 val networkModule = module {
 
