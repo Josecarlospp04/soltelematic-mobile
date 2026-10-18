@@ -62,8 +62,10 @@ class AccountViewModel(
     }
 
     fun onLogout() {
-        authRepository.logout()
         viewModelScope.launch {
+            // Primero se revoca en el servidor y se borra la sesión local (siempre, ver
+            // AuthRepository.logout); después, lo que ya hacía.
+            authRepository.logout()
             // Sin esto, el siguiente usuario que inicie sesión en este dispositivo vería
             // la flota del anterior hasta el próximo refresh.
             assetRepository.clear()

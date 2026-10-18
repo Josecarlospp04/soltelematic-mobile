@@ -1,6 +1,7 @@
 package pe.soltelematic.mobile.data.repository
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import pe.soltelematic.mobile.core.network.ApiCallExecutor
 import pe.soltelematic.mobile.core.result.ApiError
@@ -91,5 +92,22 @@ class AuthRepositoryImpl(
 
     override fun getStoredUserId(): Int? = tokenStorage.getUserId()
 
-    override fun logout() = tokenStorage.clearTokens()
+    override suspend fun logout() {
+        try {
+            // Sin red, 401 por suscripción vencida, timeout...: da igual, no se reintenta ni se
+            // informa. El timeout es de corrutina (cancela la llamada) y corto para no dejar al
+            // usuario esperando en la pantalla de Cuenta.
+            withTimeoutOrNull(LOGOUT_TIMEOUT_MS) { apiCallExecutor.execute { authApi.logout() } }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Cualquier otra cosa tampoco debe impedir el cierre local.
+        } finally {
+            tokenStorage.clearTokens()
+        }
+    }
+
+    private companion object {
+        const val LOGOUT_TIMEOUT_MS = 5_000L
+    }
 }

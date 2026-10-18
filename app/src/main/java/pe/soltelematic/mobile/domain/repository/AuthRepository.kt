@@ -22,5 +22,10 @@ interface AuthRepository {
 
     /** Id persistido junto con la sesión (ver AuthRepositoryImpl.getCurrentUser); null si /user nunca respondió con éxito. */
     fun getStoredUserId(): Int?
-    fun logout()
+
+    /**
+     * Revoca el token en el servidor (mejor esfuerzo, timeout corto, cualquier fallo se ignora) y
+     * SIEMPRE borra la sesión local después: el cierre nunca depende de que el servidor responda.
+     */
+    suspend fun logout()
 }

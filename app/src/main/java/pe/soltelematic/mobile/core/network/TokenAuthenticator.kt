@@ -25,6 +25,10 @@ class TokenAuthenticator(
 
     override fun authenticate(route: Route?, response: Response): Request? {
         if (response.request.header("Authorization") == null) return null
+        // POST logout: si responde 401 el token ya no sirve (o la suscripción venció) y de todos
+        // modos se va a cerrar sesión. Refrescar y reintentar solo gastaría el refresh token y
+        // revocaría uno nuevo; el 401 se devuelve tal cual y AuthRepository.logout lo ignora.
+        if (response.request.url.pathSegments.lastOrNull() == "logout") return null
         if (responseCount(response) >= 2) return null // corta el bucle si el refresh también da 401
 
         val refreshToken = tokenStorage.getRefreshToken()

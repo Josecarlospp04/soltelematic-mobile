@@ -25,6 +25,11 @@ interface AuthApi {
         @Field("refresh_token") refreshToken: String
     ): TokenResponseDto
 
+    // Autenticado con el Bearer como el resto (AuthInterceptor). El servidor revoca el access token
+    // actual y sus refresh tokens (parche 11); responde 201 con un cuerpo que no se lee.
+    @POST("logout")
+    suspend fun logout()
+
     @GET("server_config")
     suspend fun getServerConfig(): ServerConfigDto
 
