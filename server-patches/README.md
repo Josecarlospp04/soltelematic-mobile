@@ -1,8 +1,8 @@
 # Parches al servidor GPSWOX — SOLTELEMATIC Mobile
 
-Ocho parches obligatorios. Sin ellos la app no funciona correctamente.
+Diez parches obligatorios. Sin ellos la app no funciona correctamente.
 
-**Hay que reaplicarlos después de cada actualización de la plataforma GPSWOX**, porque se sobrescriben. Al desplegar la app para un cliente nuevo (otro servidor), aplicar los ocho antes de nada.
+**Hay que reaplicarlos después de cada actualización de la plataforma GPSWOX**, porque se sobrescriben. Al desplegar la app para un cliente nuevo (otro servidor), aplicar los diez antes de nada.
 
 Los archivos de esta carpeta son copias **literales y probadas** de un servidor en producción, no reconstrucciones.
 
@@ -21,6 +21,7 @@ Los archivos de esta carpeta son copias **literales y probadas** de un servidor 
 - [ ] Cliente OAuth `ClientLite Password Grant Client` creado (`php artisan server:passport`)
 - [ ] Verificar login desde la app antes de entregar
 - [ ] Parche 9 — `devices/map` sin filtro de visibilidad
+- [ ] Parche 10 — gestión de alertas (`alerts`)
 
 ---
 
@@ -46,6 +47,7 @@ cp app/Http/Controllers/Api/ClientLite/SettingsController.php{,.bak}
 | `controllers/ReportsController.php` | `app/Http/Controllers/Api/ClientLite/` |
 | `controllers/ParametersController.php` | `app/Http/Controllers/Api/ClientLite/` |
 | `controllers/DevicesController.php` | `app/Http/Controllers/Api/ClientLite/` |
+| `controllers/AlertsController.php` (nuevo) | `app/Http/Controllers/Api/ClientLite/` |
 
 ⚠️ `.htaccess` y `SettingsController.php` **no se reemplazan enteros**: el original trae más cosas. Ver abajo qué línea añadir en cada uno.
 
@@ -207,12 +209,58 @@ Se elimina la línea `->visible()`.
 ⚠️ El endpoint `devices` (lista de unidades) nunca llevó este filtro, de ahí que la unidad desmarcada siguiera apareciendo en la pestaña Unidades pero no en el mapa.
 ---
 
+## 10 · Gestión de alertas
+
+La web gestiona alertas solo por rutas con sesión y CSRF. La lógica (validación y permisos) vive en `ModalHelpers/AlertModalHelper.php`; el controlador nuevo solo la expone como JSON. **No se modifica ningún archivo de GPSWOX** salvo `routes/app.php`.
+
+**Respaldo previo** (el controlador es un archivo nuevo, no hay nada que respaldar de él):
+
+```bash
+cd /var/www/soltelematic
+cp routes/app.php{,.pre-p10.bak}
+```
+
+**Endpoints:**
+
+| Método | Ruta | Acción |
+|---|---|---|
+| `GET` | `alerts` | `index` — lista con `pois` y `zones` como IDs |
+| `GET` | `alerts/form` | `form` — datos para el alta |
+| `GET` | `alerts/{id}/form` | `form` — datos para la edición (trae `item` y `commands`) |
+| `POST` | `alerts` | `store` |
+| `PUT` | `alerts/{id}` | `update` |
+| `DELETE` | `alerts/{id}` | `destroy` |
+| `POST` | `alerts/active` | `active` — body `{ "id": 5 \| [5, 6], "active": true }` |
+
+`alerts/form` se declara **antes** de `alerts/{id}` en `routes/app.php`.
+
+**Despliegue:**
+
+```bash
+cd /var/www/soltelematic
+cp <carpeta-del-parche>/controllers/AlertsController.php app/Http/Controllers/Api/ClientLite/
+cp <carpeta-del-parche>/app.php routes/app.php
+php -l routes/app.php
+php -l app/Http/Controllers/Api/ClientLite/AlertsController.php
+php artisan route:clear
+```
+
+⚠️ **El helper se instancia dentro de cada método**, nunca por inyección ni por la facade `CustomFacades\ModalHelpers\AlertModalHelper`: su constructor crea loaders con `Auth::User()` en ese momento. Antes de usarlo: `setUser`, `setApi(true)`, `setData`.
+⚠️ **`index`:** en modo API el helper no trae `pois` ni `zones`; el controlador los añade como listas de IDs con un único `Alert::with(['pois','zones'])` (sin N+1).
+⚠️ **`form`:** sustituye `types` por una lista `[{ type, title, attributes: [{ name, type, title, options? }] }]`, con cada campo transformado como lo hace la web (`options` solo en `SelectField`). `createData()` lanza `ValidationException` si el usuario no tiene unidades.
+⚠️ **`update`:** el `id` de la ruta prevalece sobre un `id` que llegue en el body.
+⚠️ **`active`** no está en el helper: replica la lógica del controlador web (`Alert::enabled()` + `$user->can('active', $alert)` por alerta, y `update(['active' => 0|1])`). Su `afterAuth` pide permiso `view`, no `store`.
+⚠️ **No se filtra nada del lado servidor** (ni el canal `command` de `notifications` ni los tipos): la app decide qué mostrar.
+⚠️ Errores de validación y de permisos: los resuelve el manejador global de excepciones, igual que en `POST geofences` (el controlador no captura nada).
+
+---
+
 ## Verificación rápida tras aplicar
 
 Todas las rutas deben devolver **401** sin token (no 404):
 
 ```bash
-for u in devices geofences/map sharing reports/types parameters; do
+for u in devices geofences/map sharing reports/types parameters alerts alerts/form; do
   echo -n "$u -> "
   curl -s -o /dev/null -w "%{http_code}\n" http://localhost/api/app/clientlite/$u
 done

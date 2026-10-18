@@ -64,6 +64,15 @@ Route::group(['middleware' => [], 'namespace' => 'Api\ClientLite', 'prefix' => '
 
         // PARCHE SOLTELEMATIC MOBILE -- series temporales de parametros para graficar.
         Route::get('parameters', ['uses' => 'ParametersController@get']);
+
+        // PARCHE SOLTELEMATIC MOBILE -- gestion de alertas. alerts/form va ANTES de alerts/{id}.
+        Route::get('alerts', ['uses' => 'AlertsController@index']);
+        Route::get('alerts/form', ['uses' => 'AlertsController@form']);
+        Route::get('alerts/{id}/form', ['uses' => 'AlertsController@form']);
+        Route::post('alerts', ['uses' => 'AlertsController@store']);
+        Route::put('alerts/{id}', ['uses' => 'AlertsController@update']);
+        Route::delete('alerts/{id}', ['uses' => 'AlertsController@destroy']);
+        Route::post('alerts/active', ['uses' => 'AlertsController@active']);
     });
 });
 
