@@ -204,7 +204,9 @@ fun MapScreen(
         // el efecto con la llave nueva ya viene en camino.
         if (state.focusRequestId != focusRequestId) return@LaunchedEffect
         val asset = state.highlightedAsset ?: return@LaunchedEffect
-        cameraController.frame(asset.framePoints())
+        // Sin cola (ajuste de Cuenta) solo cuenta la unidad: frame() con un punto la centra con
+        // DEFAULT_ZOOM dentro de la zona visible.
+        cameraController.frame(if (state.showTail) asset.framePoints() else listOfNotNull(asset.position))
     }
 
     // Seguimiento: en cada sondeo que mueve a la unidad enfocada, la cámara la sigue manteniendo el
@@ -262,8 +264,9 @@ fun MapScreen(
     // cada sondeo porque sale de uiState.assets.
     val brandColorArgb = MaterialTheme.colorScheme.primary.toArgb()
     val highlightedAsset = uiState.highlightedAsset
-    val tailData = remember(highlightedAsset, brandColorArgb, isDrawingGeofence) {
-        if (isDrawingGeofence || highlightedAsset == null || highlightedAsset.tail.isEmpty()) return@remember null
+    val showTail = uiState.showTail
+    val tailData = remember(highlightedAsset, brandColorArgb, isDrawingGeofence, showTail) {
+        if (!showTail || isDrawingGeofence || highlightedAsset == null || highlightedAsset.tail.isEmpty()) return@remember null
         val points = highlightedAsset.framePoints()
         val color = highlightedAsset.tailColorHex
             ?.takeIf { it.isNotBlank() }

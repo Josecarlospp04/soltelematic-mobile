@@ -10,5 +10,7 @@ data class AccountUiState(
     val unitCount: Int? = null,
     val isLoading: Boolean = true,
     // Reflejo de UserPreferencesDataStore.volumeUnit, litros por defecto (ver AccountViewModel).
-    val volumeUnit: VolumeUnit = VolumeUnit.LITERS
+    val volumeUnit: VolumeUnit = VolumeUnit.LITERS,
+    // Reflejo de UserPreferencesDataStore.showTail, activado por defecto (ver AccountViewModel).
+    val showTail: Boolean = true
 )

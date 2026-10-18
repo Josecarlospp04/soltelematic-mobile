@@ -53,6 +53,17 @@ class AccountViewModel(
                 _uiState.update { it.copy(volumeUnit = unit) }
             }
         }
+        viewModelScope.launch {
+            userPreferences.showTail.collect { enabled ->
+                _uiState.update { it.copy(showTail = enabled) }
+            }
+        }
+    }
+
+    fun onShowTailChanged(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setShowTail(enabled)
+        }
     }
 
     fun onVolumeUnitSelected(unit: VolumeUnit) {

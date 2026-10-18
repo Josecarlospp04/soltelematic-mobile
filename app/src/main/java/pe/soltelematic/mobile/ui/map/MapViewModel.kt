@@ -115,6 +115,11 @@ class MapViewModel(
                 _uiState.update { it.copy(mapType = type) }
             }
         }
+        viewModelScope.launch {
+            userPreferences.showTail.collect { enabled ->
+                _uiState.update { it.copy(showTail = enabled) }
+            }
+        }
         refresh()
         // Bloque C: devices/map (arriba) para la carga inicial, polling para lo que sigue. El
         // socket queda registrado pero SOCKET_REALTIME_ENABLED lo apaga -- start() no hace nada

@@ -20,6 +20,7 @@ private val KEY_LAST_EMAIL = stringPreferencesKey("last_email")
 private val KEY_SHOW_GEOFENCES = booleanPreferencesKey("show_geofences")
 private val KEY_MAP_TYPE = stringPreferencesKey("map_type")
 private val KEY_VOLUME_UNIT = stringPreferencesKey("volume_unit")
+private val KEY_SHOW_TAIL = booleanPreferencesKey("show_tail")
 
 /** Preferencias NO sensibles. Tokens nunca van aquí, esos son de SecureTokenStorage. */
 class UserPreferencesDataStore(private val context: Context) {
@@ -68,6 +69,18 @@ class UserPreferencesDataStore(private val context: Context) {
     suspend fun setVolumeUnit(unit: VolumeUnit) {
         context.userPreferencesDataStore.edit { prefs ->
             prefs[KEY_VOLUME_UNIT] = unit.name
+        }
+    }
+
+    // Activada por defecto: la cola de la unidad enfocada es parte de la vista normal del mapa; el
+    // ajuste (Cuenta) es para quien prefiere un mapa más limpio. No afecta a la ruta del Historial.
+    val showTail: Flow<Boolean> = context.userPreferencesDataStore.data.map { prefs ->
+        prefs[KEY_SHOW_TAIL] ?: true
+    }
+
+    suspend fun setShowTail(enabled: Boolean) {
+        context.userPreferencesDataStore.edit { prefs ->
+            prefs[KEY_SHOW_TAIL] = enabled
         }
     }
 }

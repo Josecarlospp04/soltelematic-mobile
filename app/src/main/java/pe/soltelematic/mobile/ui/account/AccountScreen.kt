@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -46,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -115,7 +118,9 @@ fun AccountScreen(
                 Spacer(modifier = Modifier.height(SoltelematicSpacing.xl))
                 UnitsSection(
                     volumeUnit = uiState.volumeUnit,
-                    onVolumeUnitSelected = viewModel::onVolumeUnitSelected
+                    onVolumeUnitSelected = viewModel::onVolumeUnitSelected,
+                    showTail = uiState.showTail,
+                    onShowTailChanged = viewModel::onShowTailChanged
                 )
                 Spacer(modifier = Modifier.height(SoltelematicSpacing.xl))
                 SupportSection()
@@ -188,7 +193,12 @@ private fun AccountAvatar(email: String?) {
  * menú desplegable para una elección tan chica.
  */
 @Composable
-private fun UnitsSection(volumeUnit: VolumeUnit, onVolumeUnitSelected: (VolumeUnit) -> Unit) {
+private fun UnitsSection(
+    volumeUnit: VolumeUnit,
+    onVolumeUnitSelected: (VolumeUnit) -> Unit,
+    showTail: Boolean,
+    onShowTailChanged: (Boolean) -> Unit
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = stringResource(R.string.account_units_section_title).uppercase(),
@@ -213,6 +223,30 @@ private fun UnitsSection(volumeUnit: VolumeUnit, onVolumeUnitSelected: (VolumeUn
                 selected = volumeUnit == VolumeUnit.GALLONS,
                 onClick = { onVolumeUnitSelected(VolumeUnit.GALLONS) }
             )
+        }
+        Spacer(modifier = Modifier.height(SoltelematicSpacing.lg))
+        // Toda la fila conmuta (toggleable), no solo el Switch: objetivo táctil completo.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = SoltelematicMinTouchTarget)
+                .toggleable(value = showTail, role = Role.Switch, onValueChange = onShowTailChanged)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.account_show_tail_label),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.account_show_tail_help),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(SoltelematicSpacing.md))
+            Switch(checked = showTail, onCheckedChange = null)
         }
     }
 }

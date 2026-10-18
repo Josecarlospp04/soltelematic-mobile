@@ -32,6 +32,9 @@ data class MapUiState(
     // Reflejo de UserPreferencesDataStore.mapType, NORMAL por defecto (ver MapViewModel). Solo
     // afecta el mapa en vivo -- el mapa del Historial (GoogleRouteMapEngine) no lo lee.
     val mapType: MapType = MapType.NORMAL,
+    // Reflejo de UserPreferencesDataStore.showTail, activado por defecto (ver MapViewModel). Apagado:
+    // no se dibuja la cola ni se encuadra con ella.
+    val showTail: Boolean = true,
     // Distancia/conducción/detenido + dirección de la hoja inferior: no vienen en devices/map
     // (ver Asset), así que llegan después de abrir la hoja (device/{id} history + geocodificación,
     // mismo camino que AssetDetailViewModel) -- la hoja nunca espera a esto para mostrarse.
