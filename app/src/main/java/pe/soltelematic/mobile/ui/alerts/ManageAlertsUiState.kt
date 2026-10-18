@@ -28,6 +28,9 @@ data class ManageAlertsUiState(
 /** Para mostrar una sola vez (Snackbar), mismo patrón que GeofenceCreateEvent. */
 sealed class ManageAlertsEvent {
     data object OpenCreateForm : ManageAlertsEvent()
+    data class OpenEditForm(val alertId: Int) : ManageAlertsEvent()
+    // La alerta ya no es editable en la app (avanzada o de un tipo no soportado) tras volver a leerla.
+    data object EditBlocked : ManageAlertsEvent()
     // text = mensaje del servidor; null = usar el genérico.
     data class FormUnavailable(val text: String?) : ManageAlertsEvent()
     data object RefreshFailed : ManageAlertsEvent()

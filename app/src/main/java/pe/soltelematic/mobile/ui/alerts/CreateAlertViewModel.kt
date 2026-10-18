@@ -17,6 +17,7 @@ import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.domain.model.AlertAttributeType
 import pe.soltelematic.mobile.domain.model.AlertCreateRequest
+import pe.soltelematic.mobile.domain.model.AlertEditData
 import pe.soltelematic.mobile.domain.model.AlertFormData
 import pe.soltelematic.mobile.domain.model.AlertNotificationChannel
 import pe.soltelematic.mobile.domain.model.AlertNotificationSubmission
@@ -25,15 +26,17 @@ import pe.soltelematic.mobile.domain.model.NotificationInputType
 import pe.soltelematic.mobile.domain.repository.AlertsRepository
 
 /**
- * Formulario de CREAR alerta (etapa B1). El esquema (tipos, parámetros, canales) viene de GET
- * alerts/form y se interpreta en AlertFormMapper; este ViewModel solo guarda lo que el usuario
- * llena y lo traduce a AlertCreateRequest.
+ * Formulario de CREAR (alertId == null, etapa B1) y de EDITAR (alertId != null, etapa B2) una
+ * alerta: una sola pantalla y un solo ViewModel. El esquema (tipos, parámetros, canales) viene del
+ * servidor y se interpreta en AlertFormMapper; este ViewModel solo guarda lo que el usuario llena y
+ * lo traduce a AlertCreateRequest. Al editar, además precarga los valores actuales de la alerta.
  */
 class CreateAlertViewModel(
+    private val alertId: Int?,
     private val alertsRepository: AlertsRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(CreateAlertUiState())
+    private val _uiState = MutableStateFlow(CreateAlertUiState(isEditing = alertId != null))
     val uiState: StateFlow<CreateAlertUiState> = _uiState.asStateFlow()
 
     private val _events = MutableSharedFlow<CreateAlertEvent>(extraBufferCapacity = 1)
@@ -46,6 +49,10 @@ class CreateAlertViewModel(
     fun onRetry() = loadForm()
 
     private fun loadForm() {
+        if (alertId != null) {
+            loadForEdit(alertId)
+            return
+        }
         // "Gestionar alertas" ya trajo el formulario para validar la entrada: se reutiliza.
         alertsRepository.takeCachedForm()?.let { form ->
             applyForm(form)
@@ -63,6 +70,23 @@ class CreateAlertViewModel(
         }
     }
 
+    private fun loadForEdit(id: Int) {
+        alertsRepository.takeCachedEditData(id)?.let { data ->
+            applyEdit(data)
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, loadError = null) }
+            when (val result = alertsRepository.loadEditData(id)) {
+                is ApiResult.Success -> {
+                    alertsRepository.takeCachedEditData(id)
+                    applyEdit(result.data)
+                }
+                is ApiResult.Error -> _uiState.update { it.copy(isLoading = false, loadError = result.error) }
+            }
+        }
+    }
+
     private fun applyForm(form: AlertFormData) {
         _uiState.update {
             it.copy(
@@ -71,6 +95,31 @@ class CreateAlertViewModel(
                 form = form,
                 // Parte de los valores por defecto del servidor (sonido activo, popup 10 s, push...).
                 notifications = form.notifications.associate { channel ->
+                    channel.name to NotificationInputState(channel.defaultActive, channel.defaultInput)
+                }
+            )
+        }
+    }
+
+    private fun applyEdit(data: AlertEditData) {
+        val preload = buildEditPreload(data.form, data.rule)
+        if (preload == null) {
+            // La editaron en la web mientras tanto (ahora es avanzada) o su tipo no se puede pintar.
+            _uiState.update { it.copy(isLoading = false, loadError = null, editBlocked = true) }
+            return
+        }
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                loadError = null,
+                editBlocked = false,
+                form = data.form,
+                name = preload.name,
+                selectedType = preload.type,
+                attributeValues = preload.attributeValues,
+                selectedDeviceIds = preload.deviceIds,
+                // En edición active/input de los canales ya son los ACTUALES de la alerta.
+                notifications = data.form.notifications.associate { channel ->
                     channel.name to NotificationInputState(channel.defaultActive, channel.defaultInput)
                 }
             )
@@ -147,10 +196,15 @@ class CreateAlertViewModel(
 
         _uiState.update { it.copy(isSaving = true, serverErrors = emptyMap()) }
         viewModelScope.launch {
-            when (val result = alertsRepository.createAlert(request)) {
+            val result = if (alertId == null) {
+                alertsRepository.createAlert(request)
+            } else {
+                alertsRepository.updateAlert(alertId, request)
+            }
+            when (result) {
                 is ApiResult.Success -> {
                     _uiState.update { it.copy(isSaving = false) }
-                    _events.emit(CreateAlertEvent.Created)
+                    _events.emit(CreateAlertEvent.Saved)
                 }
                 is ApiResult.Error -> onSaveFailed(result.error, type)
             }

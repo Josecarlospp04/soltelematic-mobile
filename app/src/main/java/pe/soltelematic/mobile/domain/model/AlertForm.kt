@@ -50,6 +50,12 @@ data class AlertNotificationChannel(
     val options: List<AlertOption>
 )
 
+/**
+ * Lo necesario para precargar la edición de una alerta: el esquema del formulario (con los
+ * valores ACTUALES de los canales) y la alerta recién leída, con sus relaciones como listas de ids.
+ */
+data class AlertEditData(val form: AlertFormData, val rule: AlertRule)
+
 /** Lo que el usuario llenó, ya con tipos JSON listos para el cuerpo de POST alerts. */
 data class AlertCreateRequest(
     val name: String,

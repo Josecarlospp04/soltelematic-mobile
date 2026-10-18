@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.JsonPrimitive
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 import pe.soltelematic.mobile.R
 import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.domain.model.AlertAttribute
@@ -88,8 +89,10 @@ private val NotificationColorPalette = listOf(
 @Composable
 fun CreateAlertScreen(
     onBack: () -> Unit,
-    onCreated: () -> Unit,
-    viewModel: CreateAlertViewModel = koinViewModel()
+    onSaved: () -> Unit,
+    // null = crear; con id = editar esa alerta (misma pantalla, misma lógica).
+    alertId: Int? = null,
+    viewModel: CreateAlertViewModel = koinViewModel(parameters = { alertId?.let { parametersOf(it) } ?: parametersOf() })
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -98,7 +101,7 @@ fun CreateAlertScreen(
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                CreateAlertEvent.Created -> onCreated()
+                CreateAlertEvent.Saved -> onSaved()
                 is CreateAlertEvent.Failed -> snackbarHostState.showSnackbar(event.text ?: genericError)
             }
         }
@@ -107,7 +110,12 @@ fun CreateAlertScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.create_alert_title), style = MaterialTheme.typography.titleLarge) },
+                title = {
+                    Text(
+                        stringResource(if (uiState.isEditing) R.string.edit_alert_title else R.string.create_alert_title),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.asset_detail_back))
@@ -122,7 +130,7 @@ fun CreateAlertScreen(
                                 .size(24.dp)
                         )
                     } else {
-                        TextButton(onClick = viewModel::onSave, enabled = uiState.form != null) {
+                        TextButton(onClick = viewModel::onSave, enabled = uiState.form != null && !uiState.editBlocked) {
                             Text(stringResource(R.string.create_alert_save), style = MaterialTheme.typography.labelLarge)
                         }
                     }
@@ -147,6 +155,15 @@ fun CreateAlertScreen(
                 uiState.isLoading -> CircularProgressIndicator(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.align(Alignment.Center)
+                )
+                uiState.editBlocked -> Text(
+                    text = stringResource(R.string.manage_alerts_advanced_notice),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(SoltelematicSpacing.xl)
                 )
                 uiState.loadError != null -> LoadErrorState(
                     error = uiState.loadError!!,

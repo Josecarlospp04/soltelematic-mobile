@@ -104,6 +104,31 @@ class ManageAlertsViewModel(
         }
     }
 
+    /**
+     * Antes de abrir la edición se vuelve a leer la alerta (y el esquema): si mientras tanto la
+     * cambiaron en la web y ahora es avanzada, no se abre el formulario, solo se avisa. El resultado
+     * queda en el repositorio para que el formulario lo reutilice sin repetir las llamadas.
+     */
+    fun onEditClicked(alert: AlertRule) {
+        if (_uiState.value.isOpeningForm) return
+        _uiState.update { it.copy(isOpeningForm = true) }
+        viewModelScope.launch {
+            when (val result = alertsRepository.loadEditData(alert.id)) {
+                is ApiResult.Success -> {
+                    if (buildEditPreload(result.data.form, result.data.rule) == null) {
+                        alertsRepository.takeCachedEditData(alert.id)
+                        _events.emit(ManageAlertsEvent.EditBlocked)
+                        load(isRefresh = true)
+                    } else {
+                        _events.emit(ManageAlertsEvent.OpenEditForm(alert.id))
+                    }
+                }
+                is ApiResult.Error -> _events.emit(ManageAlertsEvent.FormUnavailable(result.error.serverMessage()))
+            }
+            _uiState.update { it.copy(isOpeningForm = false) }
+        }
+    }
+
     fun onDeleteRequested(alert: AlertRule) {
         _uiState.update { it.copy(pendingDelete = alert) }
     }

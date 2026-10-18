@@ -1,6 +1,9 @@
 package pe.soltelematic.mobile.data.repository
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import pe.soltelematic.mobile.core.network.ApiCallExecutor
+import pe.soltelematic.mobile.core.result.ApiError
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.data.mapper.toAlertFormData
 import pe.soltelematic.mobile.data.mapper.toAlertRule
@@ -8,6 +11,7 @@ import pe.soltelematic.mobile.data.mapper.toRequestBody
 import pe.soltelematic.mobile.data.remote.api.AlertsApi
 import pe.soltelematic.mobile.data.remote.dto.AlertActiveRequestDto
 import pe.soltelematic.mobile.domain.model.AlertCreateRequest
+import pe.soltelematic.mobile.domain.model.AlertEditData
 import pe.soltelematic.mobile.domain.model.AlertFormData
 import pe.soltelematic.mobile.domain.model.AlertRule
 import pe.soltelematic.mobile.domain.repository.AlertsRepository
@@ -53,6 +57,39 @@ class AlertsRepositoryImpl(
 
     override suspend fun createAlert(request: AlertCreateRequest): ApiResult<Unit> =
         when (val result = apiCallExecutor.execute { api.createAlert(request.toRequestBody()) }) {
+            is ApiResult.Success -> ApiResult.Success(Unit)
+            is ApiResult.Error -> result
+        }
+
+    private var cachedEditData: AlertEditData? = null
+
+    override suspend fun loadEditData(id: Int): ApiResult<AlertEditData> = coroutineScope {
+        val formCall = async { apiCallExecutor.execute { api.getAlertEditForm(id) } }
+        val listCall = async { getAlerts() }
+        val formResult = formCall.await()
+        val alertsResult = listCall.await()
+        when {
+            formResult is ApiResult.Error -> formResult
+            alertsResult is ApiResult.Error -> alertsResult
+            else -> {
+                val rule = (alertsResult as ApiResult.Success).data.firstOrNull { it.id == id }
+                if (rule == null) {
+                    // Borrada mientras tanto (p. ej. desde la web).
+                    ApiResult.Error(ApiError.Http(404, null))
+                } else {
+                    val data = AlertEditData((formResult as ApiResult.Success).data.toAlertFormData(), rule)
+                    cachedEditData = data
+                    ApiResult.Success(data)
+                }
+            }
+        }
+    }
+
+    override fun takeCachedEditData(id: Int): AlertEditData? =
+        cachedEditData?.takeIf { it.rule.id == id }.also { cachedEditData = null }
+
+    override suspend fun updateAlert(id: Int, request: AlertCreateRequest): ApiResult<Unit> =
+        when (val result = apiCallExecutor.execute { api.updateAlert(id, request.toRequestBody()) }) {
             is ApiResult.Success -> ApiResult.Success(Unit)
             is ApiResult.Error -> result
         }

@@ -335,6 +335,8 @@
 
     <!-- Gestión de alertas (etapa B1: crear) -->
     <string name="create_alert_title">Nueva alerta</string>
+    <string name="edit_alert_title">Editar alerta</string>
+    <string name="manage_alerts_menu_edit">Editar</string>
     <string name="create_alert_save">Guardar</string>
     <string name="create_alert_name_label">Nombre</string>
     <string name="create_alert_type_label">Tipo de alerta</string>

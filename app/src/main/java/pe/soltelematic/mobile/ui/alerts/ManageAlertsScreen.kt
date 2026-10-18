@@ -1,5 +1,6 @@
 package pe.soltelematic.mobile.ui.alerts
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,6 +80,7 @@ private val FabClearance = 88.dp
 fun ManageAlertsScreen(
     onBack: () -> Unit,
     onOpenCreateForm: () -> Unit,
+    onOpenEditForm: (Int) -> Unit,
     // true cuando una alerta se acaba de crear en otra pantalla: se refresca la lista una vez.
     refreshRequested: Boolean,
     onRefreshHandled: () -> Unit,
@@ -91,6 +93,7 @@ fun ManageAlertsScreen(
     val deleteError = stringResource(R.string.manage_alerts_delete_error)
     val refreshError = stringResource(R.string.manage_alerts_refresh_error)
     val formUnavailable = stringResource(R.string.manage_alerts_form_unavailable)
+    val advancedNotice = stringResource(R.string.manage_alerts_advanced_notice)
 
     LaunchedEffect(refreshRequested) {
         if (refreshRequested) {
@@ -105,6 +108,11 @@ fun ManageAlertsScreen(
                     onOpenCreateForm()
                     return@collect
                 }
+                is ManageAlertsEvent.OpenEditForm -> {
+                    onOpenEditForm(event.alertId)
+                    return@collect
+                }
+                ManageAlertsEvent.EditBlocked -> advancedNotice
                 is ManageAlertsEvent.FormUnavailable -> event.text ?: formUnavailable
                 ManageAlertsEvent.ToggleFailed -> toggleError
                 ManageAlertsEvent.DeleteFailed -> deleteError
@@ -193,6 +201,7 @@ fun ManageAlertsScreen(
                             typeTitle = uiState.titleOf(alert),
                             isToggling = alert.id in uiState.togglingIds,
                             onToggle = { active -> viewModel.onToggleActive(alert, active) },
+                            onEdit = { viewModel.onEditClicked(alert) },
                             onDelete = { viewModel.onDeleteRequested(alert) }
                         )
                     }
@@ -222,6 +231,7 @@ private fun AlertCard(
     typeTitle: String,
     isToggling: Boolean,
     onToggle: (Boolean) -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -233,6 +243,8 @@ private fun AlertCard(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = SoltelematicMinTouchTarget)
+            // Las avanzadas no se editan en la app: la tarjeta no es tocable y no hay "Editar".
+            .then(if (alert.isAdvanced) Modifier else Modifier.clickable(onClick = onEdit))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -287,6 +299,15 @@ private fun AlertCard(
                     )
                 }
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                    if (!alert.isAdvanced) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.manage_alerts_menu_edit)) },
+                            onClick = {
+                                menuExpanded = false
+                                onEdit()
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.manage_alerts_menu_delete)) },
                         onClick = {

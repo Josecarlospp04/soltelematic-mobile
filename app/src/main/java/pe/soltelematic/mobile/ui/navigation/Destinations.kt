@@ -4,6 +4,7 @@ import java.time.LocalDate
 
 private const val ASSET_ID_ARG = "assetId"
 private const val EVENT_ID_ARG = "eventId"
+private const val ALERT_ID_ARG = "alertId"
 private const val FROM_ARG = "from"
 private const val TO_ARG = "to"
 
@@ -24,6 +25,11 @@ sealed class Destination(val route: String) {
     // está en AppBottomBarRoutes, así que no muestra la barra inferior.
     data object ManageAlerts : Destination("alerts/manage")
     data object CreateAlert : Destination("alerts/create")
+    // El mismo formulario de CreateAlert en modo edición: el id de la alerta viaja en la ruta.
+    data object EditAlert : Destination("alerts/{$ALERT_ID_ARG}/edit") {
+        const val ARG_ID = ALERT_ID_ARG
+        fun createRoute(alertId: Int) = "alerts/$alertId/edit"
+    }
     data object AssetDetail : Destination("asset/{$ASSET_ID_ARG}") {
         const val ARG_ID = ASSET_ID_ARG
         fun createRoute(assetId: Int) = "asset/$assetId"

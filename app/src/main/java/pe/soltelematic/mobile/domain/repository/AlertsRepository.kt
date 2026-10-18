@@ -2,6 +2,7 @@ package pe.soltelematic.mobile.domain.repository
 
 import pe.soltelematic.mobile.core.result.ApiResult
 import pe.soltelematic.mobile.domain.model.AlertCreateRequest
+import pe.soltelematic.mobile.domain.model.AlertEditData
 import pe.soltelematic.mobile.domain.model.AlertFormData
 import pe.soltelematic.mobile.domain.model.AlertRule
 
@@ -27,6 +28,18 @@ interface AlertsRepository {
     fun takeCachedForm(): AlertFormData?
 
     suspend fun createAlert(request: AlertCreateRequest): ApiResult<Unit>
+
+    /**
+     * Esquema de edición (GET alerts/{id}/form) y la alerta tal como está AHORA (GET alerts), en
+     * paralelo: las relaciones y los valores de los atributos salen de esta última, donde vienen
+     * como listas de ids (en "item" del form llegan como objetos y sin geocercas).
+     */
+    suspend fun loadEditData(id: Int): ApiResult<AlertEditData>
+
+    /** Mismo trato que takeCachedForm: "Gestionar alertas" valida la entrada y el formulario lo reutiliza. */
+    fun takeCachedEditData(id: Int): AlertEditData?
+
+    suspend fun updateAlert(id: Int, request: AlertCreateRequest): ApiResult<Unit>
 
     suspend fun setActive(id: Int, active: Boolean): ApiResult<Unit>
 

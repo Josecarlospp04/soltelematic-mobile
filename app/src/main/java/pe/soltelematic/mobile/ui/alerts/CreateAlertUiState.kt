@@ -24,6 +24,11 @@ private val HEX_COLOR = Regex("^#[0-9a-fA-F]{6}$")
 fun isValidHexColor(text: String): Boolean = HEX_COLOR.matches(text.trim())
 
 data class CreateAlertUiState(
+    // true al editar una alerta existente (título "Editar alerta" y precarga).
+    val isEditing: Boolean = false,
+    // La alerta que se iba a editar resultó avanzada (o de un tipo no soportado) al leerla de nuevo:
+    // no se abre el formulario, solo el aviso de la plataforma web.
+    val editBlocked: Boolean = false,
     val isLoading: Boolean = true,
     val loadError: ApiError? = null,
     val form: AlertFormData? = null,
@@ -106,5 +111,6 @@ private fun validate(state: CreateAlertUiState): CreateAlertValidation {
 sealed class CreateAlertEvent {
     // text null = sin mensaje del servidor: la pantalla usa el genérico.
     data class Failed(val text: String?) : CreateAlertEvent()
-    data object Created : CreateAlertEvent()
+    // Creada o actualizada: el llamador vuelve a Gestionar alertas y refresca.
+    data object Saved : CreateAlertEvent()
 }

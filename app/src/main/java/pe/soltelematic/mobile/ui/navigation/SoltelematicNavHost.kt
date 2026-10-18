@@ -186,6 +186,7 @@ fun SoltelematicNavHost(
                 ManageAlertsScreen(
                     onBack = { navController.popBackStack() },
                     onOpenCreateForm = { navController.navigate(Destination.CreateAlert.route) },
+                    onOpenEditForm = { alertId -> navController.navigate(Destination.EditAlert.createRoute(alertId)) },
                     refreshRequested = alertsChanged,
                     onRefreshHandled = { handle[ALERTS_CHANGED_KEY] = false }
                 )
@@ -193,7 +194,21 @@ fun SoltelematicNavHost(
             composable(Destination.CreateAlert.route) {
                 CreateAlertScreen(
                     onBack = { navController.popBackStack() },
-                    onCreated = {
+                    onSaved = {
+                        navController.previousBackStackEntry?.savedStateHandle?.set(ALERTS_CHANGED_KEY, true)
+                        navController.popBackStack()
+                    }
+                )
+            }
+            composable(
+                route = Destination.EditAlert.route,
+                arguments = listOf(navArgument(Destination.EditAlert.ARG_ID) { type = NavType.IntType })
+            ) { backStackEntry ->
+                val alertId = backStackEntry.arguments?.getInt(Destination.EditAlert.ARG_ID) ?: return@composable
+                CreateAlertScreen(
+                    alertId = alertId,
+                    onBack = { navController.popBackStack() },
+                    onSaved = {
                         navController.previousBackStackEntry?.savedStateHandle?.set(ALERTS_CHANGED_KEY, true)
                         navController.popBackStack()
                     }

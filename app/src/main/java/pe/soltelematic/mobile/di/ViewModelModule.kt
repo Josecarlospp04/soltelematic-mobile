@@ -31,6 +31,7 @@ val viewModelModule = module {
     viewModel { EventMapViewModel(get(), get(), get()) }
     viewModel { UnitsViewModel(get()) }
     viewModel { ManageAlertsViewModel(get()) }
-    viewModel { CreateAlertViewModel(get()) }
+    // alertId llega por parametersOf solo al EDITAR (ver CreateAlertScreen); sin parámetros = crear.
+    viewModel { params -> CreateAlertViewModel(params.getOrNull<Int>(), get()) }
     viewModel { ReportsViewModel(get(), get(), get()) }
 }
