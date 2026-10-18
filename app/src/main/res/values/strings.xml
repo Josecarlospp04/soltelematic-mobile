@@ -312,4 +312,26 @@
         <item quantity="one">%d unidad asignada</item>
         <item quantity="other">%d unidades asignadas</item>
     </plurals>
+
+    <!-- Gestión de alertas (etapa A: lista, activar/desactivar, eliminar) -->
+    <string name="manage_alerts_title">Gestionar alertas</string>
+    <string name="manage_alerts_open_content_description">Gestionar alertas</string>
+    <string name="manage_alerts_empty_title">No hay alertas configuradas</string>
+    <string name="manage_alerts_advanced_notice">Opciones avanzadas · edítala en la plataforma web</string>
+    <string name="manage_alerts_all_units">Todas las unidades</string>
+    <string name="manage_alerts_unnamed">Alerta sin nombre</string>
+    <string name="manage_alerts_more_options">Más opciones</string>
+    <string name="manage_alerts_menu_delete">Eliminar</string>
+    <string name="manage_alerts_switch_content_description">Activar o desactivar %1$s</string>
+    <string name="manage_alerts_delete_title">Eliminar alerta</string>
+    <string name="manage_alerts_delete_message">¿Eliminar «%1$s»? Esta acción no se puede deshacer.</string>
+    <string name="manage_alerts_delete_confirm">Eliminar</string>
+    <string name="manage_alerts_delete_cancel">Cancelar</string>
+    <string name="manage_alerts_toggle_error">No se pudo cambiar el estado de la alerta. Intenta de nuevo.</string>
+    <string name="manage_alerts_delete_error">No se pudo eliminar la alerta. Intenta de nuevo.</string>
+    <string name="manage_alerts_refresh_error">No se pudo actualizar la lista de alertas.</string>
+    <plurals name="manage_alerts_units_count">
+        <item quantity="one">%d unidad</item>
+        <item quantity="other">%d unidades</item>
+    </plurals>
 </resources>

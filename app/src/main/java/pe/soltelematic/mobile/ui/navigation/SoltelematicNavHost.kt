@@ -23,6 +23,7 @@ import pe.soltelematic.mobile.core.network.AuthEventBus
 import pe.soltelematic.mobile.core.network.UnseenEventsPoller
 import pe.soltelematic.mobile.domain.repository.AuthRepository
 import pe.soltelematic.mobile.ui.account.AccountScreen
+import pe.soltelematic.mobile.ui.alerts.ManageAlertsScreen
 import pe.soltelematic.mobile.ui.assetdetail.AssetDetailScreen
 import pe.soltelematic.mobile.ui.events.EventsScreen
 import pe.soltelematic.mobile.ui.eventmap.EventMapScreen
@@ -170,8 +171,12 @@ fun SoltelematicNavHost(
                     },
                     onOpenEventMap = { eventId ->
                         navController.navigate(Destination.EventMap.createRoute(eventId))
-                    }
+                    },
+                    onOpenManageAlerts = { navController.navigate(Destination.ManageAlerts.route) }
                 )
+            }
+            composable(Destination.ManageAlerts.route) {
+                ManageAlertsScreen(onBack = { navController.popBackStack() })
             }
             composable(Destination.Reports.route) {
                 ReportsScreen()

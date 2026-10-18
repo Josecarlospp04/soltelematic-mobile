@@ -18,6 +18,7 @@ import pe.soltelematic.mobile.core.storage.SecureTokenStorage
 import pe.soltelematic.mobile.core.storage.SeenEventsStore
 import pe.soltelematic.mobile.core.storage.TokenStorage
 import pe.soltelematic.mobile.core.storage.UserPreferencesDataStore
+import pe.soltelematic.mobile.data.remote.api.AlertsApi
 import pe.soltelematic.mobile.data.remote.api.AssetDetailApi
 import pe.soltelematic.mobile.data.remote.api.AssetsApi
 import pe.soltelematic.mobile.data.remote.api.AuthApi
@@ -114,6 +115,7 @@ val networkModule = module {
     single { get<Retrofit>().create(EventsApi::class.java) }
     single { get<Retrofit>().create(GeofencesApi::class.java) }
     single { get<Retrofit>().create(SharingApi::class.java) }
+    single { get<Retrofit>().create(AlertsApi::class.java) }
 
     // --- Cliente/Retrofit/API de Informes: mismo AuthInterceptor/TokenAuthenticator que el
     // principal, solo cambia el readTimeout (ver REPORTS_READ_TIMEOUT_SECONDS arriba).

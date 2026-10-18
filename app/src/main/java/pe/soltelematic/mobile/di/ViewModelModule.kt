@@ -11,6 +11,7 @@ import pe.soltelematic.mobile.ui.history.HistoryViewModel
 import pe.soltelematic.mobile.ui.login.LoginViewModel
 import pe.soltelematic.mobile.ui.map.MapViewModel
 import pe.soltelematic.mobile.ui.parameters.ParameterChartsViewModel
+import pe.soltelematic.mobile.ui.alerts.ManageAlertsViewModel
 import pe.soltelematic.mobile.ui.reports.ReportsViewModel
 import pe.soltelematic.mobile.ui.units.UnitsViewModel
 import java.time.LocalDate
@@ -28,5 +29,6 @@ val viewModelModule = module {
     viewModel { EventsViewModel(get(), get(), get()) }
     viewModel { EventMapViewModel(get(), get(), get()) }
     viewModel { UnitsViewModel(get()) }
+    viewModel { ManageAlertsViewModel(get()) }
     viewModel { ReportsViewModel(get(), get(), get()) }
 }

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -89,6 +90,7 @@ fun EventsScreen(
     onBack: () -> Unit,
     onOpenAssetDetail: (Int) -> Unit,
     onOpenEventMap: (Int) -> Unit,
+    onOpenManageAlerts: () -> Unit,
     viewModel: EventsViewModel = koinViewModel(),
     unseenEventsPoller: UnseenEventsPoller = koinInject(),
     eventMapRequestBus: EventMapRequestBus = koinInject()
@@ -117,10 +119,19 @@ fun EventsScreen(
                             )
                         }
                     },
+                    actions = {
+                        IconButton(onClick = onOpenManageAlerts) {
+                            Icon(
+                                Icons.Filled.Tune,
+                                contentDescription = stringResource(R.string.manage_alerts_open_content_description)
+                            )
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
                         titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
                 EventsSearchBar(query = uiState.searchQuery, onQueryChange = viewModel::onSearchQueryChange)
