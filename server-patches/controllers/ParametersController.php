@@ -30,6 +30,11 @@ use Formatter;
  *
  * Un parametro que la unidad no reporta NO se incluye en la respuesta (serie ausente, no serie
  * vacia): la app no dibuja esa grafica.
+ *
+ * Las series de arriba usan etiquetas FIJAS de Teltonika (<power>, <io113>): en otras marcas
+ * (p. ej. JimiIoT) no existen. Por eso la respuesta lleva ademas `sensor_series`, una serie por
+ * cada sensor configurado en la unidad, calculada con la configuracion del propio sensor
+ * (DeviceSensor::getValue). `data` se mantiene tal cual por compatibilidad con la app 0.9.0.
  */
 class ParametersController extends Controller
 {
@@ -43,6 +48,9 @@ class ParametersController extends Controller
         'rssi'   => 'rssi',
         'sat'    => 'satellites',
     ];
+
+    /** Tipos de sensor que no se grafican: estados, texto o acumulados sin sentido como curva. */
+    private const NON_GRAPHABLE_SENSOR_TYPES = ['acc', 'ignition', 'logical', 'textual', 'odometer'];
 
     protected function afterAuth($user)
     {
@@ -89,13 +97,33 @@ class ParametersController extends Controller
             $series['fuel'] = [];
         }
 
+        // Una sola consulta de sensores; los tipos no graficables se descartan ANTES del bucle de
+        // posiciones, asi no cuestan ni una llamada a getValue().
+        $sensors = DeviceSensor::where('device_id', $device->id)
+            ->get()
+            ->reject(function ($sensor) {
+                return in_array($sensor->type, self::NON_GRAPHABLE_SENSOR_TYPES, true);
+            })
+            ->values();
+        $sensorPoints = [];
+
         // chunk para no cargar en memoria una semana entera de posiciones de golpe.
         $device->positions()
             ->whereBetween('time', [$from, $to])
             ->orderBy('time', 'ASC')
-            ->chunk(2000, function ($positions) use (&$series, $fuelSensor) {
+            ->chunk(2000, function ($positions) use (&$series, &$sensorPoints, $fuelSensor, $sensors) {
                 foreach ($positions as $position) {
                     $ts = Carbon::parse($position->time)->timestamp;
+
+                    // Sin `other` no hay nada que calcular: getValue() parsea ese XML en cada llamada.
+                    if (!empty($position->other)) {
+                        foreach ($sensors as $sensor) {
+                            $value = $this->sensorNumericValue($sensor, $position->other);
+                            if ($value !== null) {
+                                $sensorPoints[$sensor->id][] = [$ts, $value];
+                            }
+                        }
+                    }
 
                     if ($position->speed !== null) {
                         // El equipo reporta en nudos; la plataforma muestra km/h.
@@ -119,22 +147,77 @@ class ParametersController extends Controller
 
         // Se descartan las series sin ningun dato: la unidad no reporta ese parametro.
         $result = [];
+        $speedPoints = [];
         foreach ($series as $name => $points) {
             if (empty($points)) {
                 continue;
             }
 
+            $sampled = $this->downsample($points, self::MAX_POINTS);
+
             $result[] = [
                 'key'    => $name,
-                'points' => $this->downsample($points, self::MAX_POINTS),
+                'points' => $sampled,
                 'total'  => count($points),
+            ];
+
+            if ($name === 'speed') {
+                $speedPoints = $sampled; // se reutiliza en sensor_series: no se submuestrea dos veces
+            }
+        }
+
+        // Series por sensor: independientes de la marca del equipo (ver cabecera de la clase).
+        $sensorSeries = [];
+        if (!empty($speedPoints)) {
+            $sensorSeries[] = [
+                'key'    => 'speed',
+                'name'   => 'Velocidad',
+                'type'   => 'speed',
+                'unit'   => 'km/h',
+                'points' => $speedPoints,
+            ];
+        }
+        foreach ($sensors as $sensor) {
+            $points = $sensorPoints[$sensor->id] ?? [];
+            if (empty($points)) {
+                continue;
+            }
+
+            $sensorSeries[] = [
+                'key'       => 'sensor_' . $sensor->id,
+                'sensor_id' => $sensor->id,
+                'name'      => $sensor->name,
+                'type'      => $sensor->type,
+                'unit'      => (string) $sensor->getUnit(),
+                'points'    => $this->downsample($points, self::MAX_POINTS),
             ];
         }
 
         return response()->json([
-            'status' => 1,
-            'data'   => $result,
+            'status'        => 1,
+            'data'          => $result,
+            'sensor_series' => $sensorSeries,
         ]);
+    }
+
+    /**
+     * Valor del sensor para esa posicion, con su propia configuracion (formula, min-max,
+     * calibracion). getValue() puede devolver null, '-', booleanos o texto: solo pasa lo numerico.
+     * Un sensor que lance excepcion en una posicion no tumba el endpoint entero.
+     */
+    private function sensorNumericValue($sensor, $other)
+    {
+        try {
+            $value = $sensor->getValue($other, false);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if ($value === null || is_bool($value) || !is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     /** `other` es XML plano de Traccar: <power>25.638</power><rssi>5</rssi>... */

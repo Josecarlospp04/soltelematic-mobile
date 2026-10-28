@@ -189,6 +189,29 @@ Una serie sin datos **no se incluye** en la respuesta: la unidad no reporta ese 
 
 **Rendimiento verificado:** 7 días = 7425 posiciones → 500 puntos por serie, **1.9 s y 51 KB**.
 
+### `sensor_series` (parche 8b) — series por sensor, independientes de la marca
+
+**Motivo:** las series fijas de arriba usan etiquetas de Teltonika (`<power>`, `<io113>`). Una unidad de otra marca (p. ej. JimiIoT JM-LL301: `<battery>`, `<rssi>`, `<sat>`) no las tiene y no mostraba gráficas.
+
+**Qué se añade:** la respuesta lleva una clave nueva `sensor_series` junto a `data`:
+
+```json
+{ "status": 1,
+  "data": [ ...series fijas, sin cambios... ],
+  "sensor_series": [
+    { "key": "speed", "name": "Velocidad", "type": "speed", "unit": "km/h", "points": [[t, v], ...] },
+    { "key": "sensor_123", "sensor_id": 123, "name": "RESPALDO", "type": "battery", "unit": "%", "points": [[t, v], ...] }
+  ] }
+```
+
+- Una serie por sensor de la unidad, con el valor calculado por `DeviceSensor::getValue($position->other, false)` (fórmula, min-max y calibración del propio sensor), y la unidad de `getUnit()`.
+- Se excluyen los tipos `acc`, `ignition`, `logical`, `textual` y `odometer`, y cualquier valor no numérico (`null`, `'-'`, booleano). Una serie sin puntos no se incluye.
+- Mismos puntos `[t, v]`, mismo LTTB (máx. 500 por serie) y misma lectura con `$device->positions()`.
+
+⚠️ **`data` no se toca:** la app 0.9.0 depende de las series fijas (`voltage`, `battery`, `rssi`, `satellites`, `speed`, `fuel`). Se mantienen por compatibilidad.
+⚠️ **Coste:** `getValue` parsea el XML de `other` en cada llamada: es (posiciones × sensores graficables). Los tipos excluidos se descartan antes del bucle y las posiciones sin `other` se saltan.
+⚠️ `getValue` aplica la configuración **actual** del sensor a datos históricos: si se cambia la calibración, las gráficas pasadas cambian con ella.
+
 ---
 
 ## 9 · `devices/map` sin filtro de visibilidad
