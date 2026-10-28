@@ -1,5 +1,6 @@
 package pe.soltelematic.mobile.data.remote.dto
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -22,7 +23,25 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ParametersResponseDto(
     val status: Int? = null,
-    val data: List<ParameterSeriesDto> = emptyList()
+    val data: List<ParameterSeriesDto> = emptyList(),
+    // Servidor con el parche 8b: una serie por sensor de la unidad (cualquier marca). null = el
+    // servidor no está actualizado (se usa "data"); lista vacía = actualizado y sin series.
+    @SerialName("sensor_series") val sensorSeries: List<SensorSeriesDto>? = null
+)
+
+/**
+ * {"key":"sensor_177","sensor_id":177,"name":"RESPALDO","type":"battery","unit":"%","points":[...]}
+ * sensor_id falta en la serie de velocidad; unit puede ser "" (sin unidad). points: mismo formato
+ * que ParameterSeriesDto.points.
+ */
+@Serializable
+data class SensorSeriesDto(
+    val key: String? = null,
+    @SerialName("sensor_id") val sensorId: Int? = null,
+    val name: String? = null,
+    val type: String? = null,
+    val unit: String? = null,
+    val points: List<List<Double>> = emptyList()
 )
 
 /**

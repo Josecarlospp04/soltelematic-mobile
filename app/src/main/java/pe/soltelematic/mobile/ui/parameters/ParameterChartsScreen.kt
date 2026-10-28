@@ -14,7 +14,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Satellite
+import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -57,6 +63,7 @@ import kotlin.math.roundToLong
 private val ERROR_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 private val INSPECT_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
 private val EmptyStateIconSize = 40.dp
+private val ChartIconSize = 20.dp
 
 /**
  * Series apiladas con scroll vertical, una por parámetro que la unidad SÍ reporta (voltaje,
@@ -187,7 +194,25 @@ private fun ParameterChartCard(series: ParameterSeries, gestureState: ParameterC
                 .fillMaxWidth()
                 .padding(SoltelematicSpacing.md)
         ) {
-            Text(series.key.chartTitle(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm)
+            ) {
+                // Solo el camino de sensor_series trae type; las claves fijas de "data" no llevan icono.
+                if (series.name != null) {
+                    Icon(
+                        series.type.chartIcon(),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(ChartIconSize)
+                    )
+                }
+                Text(
+                    series.name ?: series.key.chartTitle(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             // Mín/Máx/Último se recalculan sobre visiblePoints, no sobre la serie completa (spec
             // item 3: acercar a la hora de un pico debe mostrar el máximo de ESE tramo). Último
@@ -199,22 +224,22 @@ private fun ParameterChartCard(series: ParameterSeries, gestureState: ParameterC
             Row(horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.lg)) {
                 ParameterStat(
                     label = stringResource(R.string.parameter_charts_min_label),
-                    value = visibleValues.minOrNull().toDisplayText(series.key)
+                    value = visibleValues.minOrNull().toDisplayText(series.displayUnit)
                 )
                 ParameterStat(
                     label = stringResource(R.string.parameter_charts_max_label),
-                    value = visibleValues.maxOrNull().toDisplayText(series.key)
+                    value = visibleValues.maxOrNull().toDisplayText(series.displayUnit)
                 )
                 ParameterStat(
                     label = stringResource(R.string.parameter_charts_last_label),
-                    value = lastVisibleValue.toDisplayText(series.key)
+                    value = lastVisibleValue.toDisplayText(series.displayUnit)
                 )
                 // Se AÑADE a la fila de siempre, no la reemplaza (spec item 2) -- destacado con
                 // color primary/tipografía más grande para que salte a la vista mientras se arrastra.
                 if (inspectTime != null) {
                     ParameterStat(
                         label = INSPECT_TIME_FORMAT.format(Instant.ofEpochSecond(inspectTime)),
-                        value = inspectedPoint?.value.toDisplayText(series.key),
+                        value = inspectedPoint?.value.toDisplayText(series.displayUnit),
                         emphasized = true
                     )
                 }
@@ -317,6 +342,16 @@ private fun ParameterChartsErrorState(error: ApiError, onRetry: () -> Unit) {
     }
 }
 
+// Icono por tipo de sensor (GPSWOX); cualquier tipo no listado usa la gráfica genérica.
+private fun String?.chartIcon(): ImageVector = when (this) {
+    "speed" -> Icons.Filled.Speed
+    "battery" -> Icons.Filled.BatteryFull
+    "gsm" -> Icons.Filled.SignalCellularAlt
+    "satellites" -> Icons.Filled.Satellite
+    "fuel_tank" -> Icons.Filled.LocalGasStation
+    else -> Icons.AutoMirrored.Filled.ShowChart
+}
+
 @Composable
 private fun ParameterKey.chartTitle(): String = when (this) {
     ParameterKey.VOLTAGE -> stringResource(R.string.parameter_charts_key_voltage)
@@ -330,11 +365,11 @@ private fun ParameterKey.chartTitle(): String = when (this) {
 
 // "25.4"/"87" -- un decimal si hace falta, sin ceros de sobra; unit va pegado con espacio solo si
 // la clave tiene una unidad real (ver ParameterKey.unit, rssi/satellites/fuel no la tienen).
-private fun Double?.toDisplayText(key: ParameterKey): String {
+private fun Double?.toDisplayText(unit: String?): String {
     val value = this ?: return "-"
     val rounded = String.format(Locale.US, "%.1f", value)
     val text = if (rounded.endsWith(".0")) rounded.dropLast(2) else rounded
-    return key.unit?.let { "$text $it" } ?: text
+    return unit?.let { "$text $it" } ?: text
 }
 
 // Mismos mensajes genéricos que HistoryScreen.toErrorCode -- duplicado deliberado, igual criterio

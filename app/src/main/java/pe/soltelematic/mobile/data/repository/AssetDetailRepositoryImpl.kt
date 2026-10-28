@@ -78,7 +78,7 @@ class AssetDetailRepositoryImpl(
                 )
             }
         ) {
-            is ApiResult.Success -> ApiResult.Success(result.data.data.toDomain())
+            is ApiResult.Success -> ApiResult.Success(result.data.toDomain())
             is ApiResult.Error -> result
         }
 

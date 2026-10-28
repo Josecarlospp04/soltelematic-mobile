@@ -14,8 +14,16 @@ import java.time.Instant
  */
 data class ParameterSeries(
     val key: ParameterKey,
-    val points: List<ParameterPoint>
-)
+    val points: List<ParameterPoint>,
+    // Solo en el camino de sensor_series (parche 8b): título, unidad y tipo de sensor tal cual los
+    // manda el servidor. name == null = serie de las claves fijas de "data" (key/unit de ParameterKey).
+    val name: String? = null,
+    val unit: String? = null,
+    val type: String? = null
+) {
+    /** Unidad a mostrar; null si no hay (unit "" del servidor ya llega como null desde el mapper). */
+    val displayUnit: String? get() = if (name != null) unit else key.unit
+}
 
 data class ParameterPoint(
     val timestamp: Instant,
