@@ -1,8 +1,8 @@
 # Parches al servidor GPSWOX — SOLTELEMATIC Mobile
 
-Once parches obligatorios. Sin ellos la app no funciona correctamente.
+Doce parches obligatorios. Sin ellos la app no funciona correctamente.
 
-**Hay que reaplicarlos después de cada actualización de la plataforma GPSWOX**, porque se sobrescriben. Al desplegar la app para un cliente nuevo (otro servidor), aplicar los once antes de nada.
+**Hay que reaplicarlos después de cada actualización de la plataforma GPSWOX**, porque se sobrescriben. Al desplegar la app para un cliente nuevo (otro servidor), aplicar los doce antes de nada.
 
 Los archivos de esta carpeta son copias **literales y probadas** de un servidor en producción, no reconstrucciones.
 
@@ -23,6 +23,7 @@ Los archivos de esta carpeta son copias **literales y probadas** de un servidor 
 - [ ] Parche 9 — `devices/map` sin filtro de visibilidad
 - [ ] Parche 10 — gestión de alertas (`alerts`)
 - [ ] Parche 11 — `logout` revoca el token en el servidor
+- [ ] Parche 12 — `events` aplica los filtros `date_from` / `date_to`
 
 ---
 
@@ -49,6 +50,7 @@ cp app/Http/Controllers/Api/ClientLite/SettingsController.php{,.bak}
 | `controllers/ParametersController.php` | `app/Http/Controllers/Api/ClientLite/` |
 | `controllers/DevicesController.php` | `app/Http/Controllers/Api/ClientLite/` |
 | `controllers/AlertsController.php` (nuevo) | `app/Http/Controllers/Api/ClientLite/` |
+| `controllers/EventsController.php` | `app/Http/Controllers/Api/ClientLite/` |
 
 ⚠️ `.htaccess` y `SettingsController.php` **no se reemplazan enteros**: el original trae más cosas. Ver abajo qué línea añadir en cada uno.
 
@@ -279,6 +281,41 @@ diff routes/app.php.pre-p11.bak routes/app.php   # debe mostrar solo el bloque d
 
 ⚠️ La app llama a este endpoint con un timeout de 5 s y **ignora cualquier fallo** (sin red, `401` por suscripción vencida…): el cierre local nunca depende del servidor. Un `401` en esta llamada no dispara el refresh automático (`TokenAuthenticator` la excluye).
 ⚠️ `active_subscription` también protege esta ruta: con la suscripción vencida el servidor responde sin revocar, y el token sigue vivo hasta caducar.
+
+---
+
+## 12 · `events` aplica los filtros de fecha
+
+**Síntoma sin el parche:** `GET events?date_from=...&date_to=...` ignoraba las fechas y devolvía siempre la bandeja completa.
+
+**Causa:** `index()` de `Api/ClientLite/EventsController.php` leía `$data` sin haberlo asignado, así que el bloque de filtros de fecha era código muerto (`device_id` sí funcionaba porque es filtrable en la entidad).
+
+**Archivo:** `app/Http/Controllers/Api/ClientLite/EventsController.php` · **Método:** `index()` · Se añade una línea al principio:
+
+```php
+$data = $request->all();
+```
+
+**Respaldo y despliegue:**
+
+```bash
+cd /var/www/soltelematic
+cp app/Http/Controllers/Api/ClientLite/EventsController.php{,.pre-p12.bak}
+cp <carpeta-del-parche>/controllers/EventsController.php app/Http/Controllers/Api/ClientLite/
+php -l app/Http/Controllers/Api/ClientLite/EventsController.php
+diff app/Http/Controllers/Api/ClientLite/EventsController.php.pre-p12.bak app/Http/Controllers/Api/ClientLite/EventsController.php   # solo la línea de $data
+```
+
+**Contrato verificado (página de 20):**
+
+| Parámetro | Formato | Notas |
+|---|---|---|
+| `device_id` | entero | Filtra por unidad. Verificado: unidad 455 → 1783 de 10781. |
+| `date_from` / `date_to` | `yyyy-MM-dd HH:mm:ss` en **hora local del usuario** | El servidor los convierte con `Formatter::time()->reverse`. Verificado: hoy `00:00:00`–`23:59:59` → 107. |
+
+Se combinan con `page` y con `search`.
+
+⚠️ Mandar UTC desplazaría el rango por el huso del usuario. La app envía `00:00:00` del primer día y `23:59:59` del último.
 
 ---
 
