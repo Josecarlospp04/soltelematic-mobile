@@ -14,12 +14,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
@@ -30,7 +33,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,7 +51,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -97,6 +105,7 @@ fun EventsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val unseenCount by unseenEventsPoller.unseenCount.collectAsState()
+    var showFilterSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -120,6 +129,13 @@ fun EventsScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { showFilterSheet = true }) {
+                            Icon(
+                                Icons.Filled.FilterList,
+                                contentDescription = stringResource(R.string.events_filter_open_content_description),
+                                tint = if (uiState.filter.isActive) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
                         IconButton(onClick = onOpenManageAlerts) {
                             Icon(
                                 Icons.Filled.Tune,
@@ -135,10 +151,32 @@ fun EventsScreen(
                     )
                 )
                 EventsSearchBar(query = uiState.searchQuery, onQueryChange = viewModel::onSearchQueryChange)
+                if (uiState.filter.isActive) {
+                    ActiveFilterChips(
+                        filter = uiState.filter,
+                        onRemoveDevice = viewModel::onRemoveDeviceFilter,
+                        onRemoveDate = viewModel::onRemoveDateFilter
+                    )
+                }
                 if (uiState.isSearching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
         }
     ) { innerPadding ->
+        if (showFilterSheet) {
+            EventsFilterSheet(
+                current = uiState.filter,
+                units = uiState.units,
+                onApply = {
+                    viewModel.onApplyFilter(it)
+                    showFilterSheet = false
+                },
+                onClear = {
+                    viewModel.onClearFilter()
+                    showFilterSheet = false
+                },
+                onDismiss = { showFilterSheet = false }
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -152,7 +190,11 @@ fun EventsScreen(
                 // esto se veía indistinguible de una búsqueda que de verdad no encontró nada.
                 uiState.isFiltering && uiState.searchError != null && uiState.searchResults.isEmpty() ->
                     EventsErrorState(error = uiState.searchError!!, onRetry = viewModel::onRetrySearch)
-                uiState.visibleEvents.isEmpty() && !uiState.isSearching -> EventsEmptyState(isFiltering = uiState.isFiltering)
+                uiState.visibleEvents.isEmpty() && !uiState.isSearching -> EventsEmptyState(
+                    isFiltering = uiState.isFiltering,
+                    hasActiveFilter = uiState.filter.isActive,
+                    onClearFilters = viewModel::onClearFilter
+                )
                 else -> EventsListContent(
                     uiState = uiState,
                     onLoadMore = viewModel::onLoadMore,
@@ -233,6 +275,46 @@ private fun EventsSearchBar(query: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
+private fun ActiveFilterChips(filter: EventsFilter, onRemoveDevice: () -> Unit, onRemoveDate: () -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(SoltelematicSpacing.sm),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = SoltelematicSpacing.lg, vertical = SoltelematicSpacing.xs)
+    ) {
+        if (filter.deviceId != null) {
+            FilterRemovableChip(label = filter.deviceName ?: filter.deviceId.toString(), onRemove = onRemoveDevice)
+        }
+        if (filter.hasDate) {
+            FilterRemovableChip(label = datePresetLabel(filter), onRemove = onRemoveDate)
+        }
+    }
+}
+
+@Composable
+private fun FilterRemovableChip(label: String, onRemove: () -> Unit) {
+    InputChip(
+        selected = true,
+        onClick = onRemove,
+        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+        trailingIcon = {
+            Icon(
+                Icons.Filled.Close,
+                contentDescription = stringResource(R.string.events_filter_remove_content_description, label),
+                modifier = Modifier.size(InputChipDefaults.IconSize)
+            )
+        },
+        shape = SoltelematicPillShape,
+        colors = InputChipDefaults.inputChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+            selectedLabelColor = MaterialTheme.colorScheme.surface,
+            selectedTrailingIconColor = MaterialTheme.colorScheme.surface
+        )
+    )
+}
+
+@Composable
 private fun EventsErrorState(error: ApiError, onRetry: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -264,7 +346,25 @@ private fun EventsErrorState(error: ApiError, onRetry: () -> Unit) {
  * que el usuario mismo puede deshacer borrando el texto, no amerita la misma puesta en escena.
  */
 @Composable
-private fun EventsEmptyState(isFiltering: Boolean) {
+private fun EventsEmptyState(isFiltering: Boolean, hasActiveFilter: Boolean, onClearFilters: () -> Unit) {
+    if (hasActiveFilter) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(SoltelematicSpacing.md),
+            modifier = Modifier.padding(SoltelematicSpacing.xl)
+        ) {
+            Text(
+                text = stringResource(R.string.events_empty_filters),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            OutlinedButton(onClick = onClearFilters, shape = SoltelematicShapes.small) {
+                Text(stringResource(R.string.events_empty_filters_clear), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        return
+    }
     if (isFiltering) {
         Text(
             text = stringResource(R.string.events_empty_search),

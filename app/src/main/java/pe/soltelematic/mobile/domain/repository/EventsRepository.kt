@@ -26,7 +26,13 @@ interface EventsRepository {
      * filtro local sobre la caché nunca replicaría ese resultado. Sin caché para esta vía: sin
      * red no hay búsqueda ni filtro por unidad.
      */
-    suspend fun searchEvents(page: Int, deviceId: Int? = null, search: String? = null): ApiResult<EventsPage>
+    suspend fun searchEvents(
+        page: Int,
+        deviceId: Int? = null,
+        search: String? = null,
+        dateFrom: String? = null,
+        dateTo: String? = null
+    ): ApiResult<EventsPage>
 
     /**
      * Para el badge de no vistos. Los id de /events son globales de toda la plataforma (no por

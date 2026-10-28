@@ -32,10 +32,16 @@ class EventsRepositoryImpl(
 
     // Directo a red, sin upsert en Room: ver EventsRepository.searchEvents sobre por qué esta
     // vía no puede cachearse (el servidor filtra por "message", que el payload no trae).
-    override suspend fun searchEvents(page: Int, deviceId: Int?, search: String?): ApiResult<EventsPage> =
+    override suspend fun searchEvents(
+        page: Int,
+        deviceId: Int?,
+        search: String?,
+        dateFrom: String?,
+        dateTo: String?
+    ): ApiResult<EventsPage> =
         when (
             val result = apiCallExecutor.execute {
-                api.getEvents(deviceId = deviceId, search = search, page = page)
+                api.getEvents(deviceId = deviceId, search = search, dateFrom = dateFrom, dateTo = dateTo, page = page)
             }
         ) {
             is ApiResult.Success -> ApiResult.Success(

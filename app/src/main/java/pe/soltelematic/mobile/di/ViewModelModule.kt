@@ -27,7 +27,7 @@ val viewModelModule = module {
     viewModel { (assetId: Int) -> AssetDetailViewModel(assetId, get(), get(), get()) }
     viewModel { (assetId: Int) -> HistoryViewModel(assetId, get(), get(), get()) }
     viewModel { (assetId: Int, from: LocalDate, to: LocalDate) -> ParameterChartsViewModel(assetId, from, to, get()) }
-    viewModel { EventsViewModel(get(), get(), get()) }
+    viewModel { EventsViewModel(get(), get(), get(), get()) }
     viewModel { EventMapViewModel(get(), get(), get()) }
     viewModel { UnitsViewModel(get()) }
     viewModel { ManageAlertsViewModel(get()) }

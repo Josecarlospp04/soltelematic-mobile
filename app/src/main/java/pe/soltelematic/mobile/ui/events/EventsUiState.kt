@@ -31,9 +31,14 @@ data class EventsUiState(
     // evento nuevo que llega mientras la bandeja está abierta (vía cachedEvents, que sí sigue
     // emitiendo) se siga pintando como "no visto" contra la misma línea base, en vez de compararse
     // contra un valor que ya subió por culpa de lo que el propio usuario fue leyendo.
-    val seenBaselineId: Int? = null
+    val seenBaselineId: Int? = null,
+
+    val filter: EventsFilter = EventsFilter(),
+    val units: List<UnitOption> = emptyList() // para el selector de unidad del filtro
 ) {
-    val isFiltering: Boolean get() = searchQuery.isNotBlank()
+    data class UnitOption(val id: Int, val name: String)
+
+    val isFiltering: Boolean get() = searchQuery.isNotBlank() || filter.isActive
     val visibleEvents: List<AlertEvent> get() = if (isFiltering) searchResults else cachedEvents
     val hasMorePages: Boolean get() = if (isFiltering) searchHasMore else inboxHasMore
 }
